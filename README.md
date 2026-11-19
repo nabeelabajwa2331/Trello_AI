@@ -24,6 +24,19 @@ The whole app runs as **one Render web service**: the API serves the built React
 
 Every push to `main` redeploys automatically. The free plan sleeps after 15 minutes idle; the first visit after that takes about 30–50 seconds.
 
+## "Continue with Google"
+
+Sign-in with Google uses only the **OAuth Client ID**; no client secret is needed. The browser gets a signed ID token from Google, and the backend verifies it (`backend/src/auth.ts`) before logging the person in. Someone who already signed up with the same email gets their existing account, not a second one.
+
+1. Google Cloud Console → **APIs & Services → Credentials** → your OAuth 2.0 Client ID (type **Web application**).
+2. Under **Authorized JavaScript origins**, add every address the app is opened from:
+   - `http://localhost:5173` and `http://localhost:5174` (local)
+   - your Render URL, e.g. `https://crewboard.onrender.com`
+   No redirect URIs are needed.
+3. Put the Client ID in `backend/.env` as `GOOGLE_CLIENT_ID` (local) and in Render's environment variables (live).
+
+If `GOOGLE_CLIENT_ID` is empty, the Google button is hidden and email sign-in works as before.
+
 ## Run it locally
 
 You need Node 20+. Two terminals:

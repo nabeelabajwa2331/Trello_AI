@@ -3,14 +3,16 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { Eye, EyeOff } from 'lucide-react';
 import { Logo } from '../components/ui/Logo';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { GoogleButton } from '../components/GoogleButton';
 import { useStore } from '../store/useStore';
 import { errorMessage } from '../lib/api';
 
-type Errors = Partial<Record<'name' | 'email' | 'password' | 'form', string>>;
+type Errors = Partial<Record<'name' | 'email' | 'password' | 'form' | 'google', string>>;
 
 export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const login = useStore((s) => s.login);
   const signup = useStore((s) => s.signup);
+  const loginWithGoogle = useStore((s) => s.loginWithGoogle);
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
@@ -50,6 +52,19 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
     }
   };
 
+  const continueWithGoogle = async (credential: string) => {
+    setErrors({});
+    setBusy(true);
+    try {
+      await loginWithGoogle(credential);
+      const from = (location.state as { from?: string } | null)?.from;
+      navigate(from ?? '/boards', { replace: true });
+    } catch (err) {
+      setErrors({ google: errorMessage(err) });
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="grid min-h-screen lg:grid-cols-[1fr_1.1fr]">
       <div className="flex flex-col px-4 py-6 sm:px-10">
@@ -67,6 +82,12 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
               Demo account filled in. To watch live updates, log in as <b>sara@example.edu</b> (same password) in a private window.
             </p>
           )}
+          {errors.google && (
+            <p role="alert" className="rounded-[8px] bg-over px-3 py-2 text-sm text-over-fg">
+              {errors.google}
+            </p>
+          )}
+          <GoogleButton mode={mode} onCredential={continueWithGoogle} disabled={busy} />
           <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
             {isSignup && (
               <Field id="name" label="Full name" error={errors.name}>

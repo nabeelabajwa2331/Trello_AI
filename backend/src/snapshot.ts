@@ -1,4 +1,5 @@
 import { prisma } from './db.js';
+import { publicUser } from './auth.js';
 
 /**
  * Serialises a board into the exact shape the frontend store uses (frontend/src/types.ts),
@@ -43,9 +44,10 @@ export async function boardSnapshot(boardId: string) {
   const now = Date.now();
   const link = b.invites.find((i) => i.token && (!i.expiresAt || i.expiresAt.getTime() > now));
 
-  const users: Record<string, { id: string; name: string; email: string; color: string }> = {};
-  for (const m of b.members) users[m.userId] = { id: m.user.id, name: m.user.name, email: m.user.email, color: m.user.color };
-  for (const a of b.activities) users[a.userId] ??= { id: a.user.id, name: a.user.name, email: a.user.email, color: a.user.color };
+  // Never pass the whole user row: it contains the password hash.
+  const users: Record<string, ReturnType<typeof publicUser>> = {};
+  for (const m of b.members) users[m.userId] = publicUser(m.user);
+  for (const a of b.activities) users[a.userId] ??= publicUser(a.user);
 
   return {
     board: {

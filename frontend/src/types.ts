@@ -7,6 +7,8 @@ export interface User {
   name: string;
   email: string;
   color: string;
+  /** Google profile photo, when they signed in with Google */
+  avatarUrl?: string | null;
 }
 
 export interface Comment {

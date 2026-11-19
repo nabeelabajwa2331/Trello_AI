@@ -26,6 +26,7 @@ interface State {
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
+  loginWithGoogle: (credential: string) => Promise<void>;
   logout: () => Promise<void>;
   bootstrap: () => Promise<void>;
   applySnapshot: (snap: Snap, keepStar?: boolean) => void;
@@ -156,8 +157,14 @@ export const useStore = create<State>()(
         await get().bootstrap();
         startRealtime();
       },
+      loginWithGoogle: async (credential) => {
+        await api('/auth/google', 'POST', { credential });
+        await get().bootstrap();
+        startRealtime();
+      },
       logout: async () => {
         disconnectRealtime();
+        window.google?.accounts.id.disableAutoSelect();
         await api('/auth/logout', 'POST').catch(() => {});
         set((s) => Object.assign(s, { status: 'guest', me: '', users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
       },

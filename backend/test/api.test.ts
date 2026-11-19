@@ -78,6 +78,65 @@ describe('auth', () => {
   });
 });
 
+describe('continue with Google', () => {
+  // Stand-in for Google's token check: the "credential" is just JSON describing the Google account.
+  before(async () => {
+    const { google } = await import('../src/auth.js');
+    const { HttpError } = await import('../src/http.js');
+    google.verify = async (credential: string) => {
+      const p = JSON.parse(credential);
+      if (p.bad) throw new HttpError(401, "Couldn't verify your Google sign-in. Try again.");
+      return { sub: p.sub, email: p.email, name: p.name, picture: p.picture };
+    };
+  });
+  const cred = (o: object) => JSON.stringify({ name: 'G User', picture: 'https://lh3.googleusercontent.com/a/x', ...o });
+
+  test('creates an account the first time, then logs into the same one', async () => {
+    const c = new Client();
+    const first = await c.post('/auth/google', { credential: cred({ sub: 'g-1', email: 'gina@gmail.com', name: 'Gina Google' }) });
+    assert.equal(first.status, 201);
+    assert.equal(first.body.user.name, 'Gina Google');
+    assert.equal(first.body.user.avatarUrl, 'https://lh3.googleusercontent.com/a/x');
+    assert.equal((await c.get('/auth/me')).body.user.email, 'gina@gmail.com');
+
+    const again = await new Client().post('/auth/google', { credential: cred({ sub: 'g-1', email: 'gina@gmail.com' }) });
+    assert.equal(again.status, 200);
+    assert.equal(again.body.user.id, first.body.user.id);
+  });
+
+  test('links to an existing email-and-password account instead of making a second one', async () => {
+    const { id } = await signup('Paula Password', 'paula@gmail.com');
+    const r = await new Client().post('/auth/google', { credential: cred({ sub: 'g-2', email: 'paula@gmail.com' }) });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.user.id, id);
+    // The password still works too.
+    assert.equal((await new Client().post('/auth/login', { email: 'paula@gmail.com', password: 'password123' })).status, 200);
+  });
+
+  test("Google-only accounts get a clear message when they try a password", async () => {
+    const r = await new Client().post('/auth/login', { email: 'gina@gmail.com', password: 'whatever123' });
+    assert.equal(r.status, 401);
+    assert.match(r.body.error, /Google/);
+    const s = await new Client().post('/auth/signup', { name: 'Gina Again', email: 'gina@gmail.com', password: 'password123' });
+    assert.equal(s.status, 409);
+    assert.match(s.body.error, /Google/);
+  });
+
+  test('a credential Google rejects does not log anyone in', async () => {
+    const c = new Client();
+    assert.equal((await c.post('/auth/google', { credential: cred({ bad: true, sub: 'x', email: 'x@gmail.com' }) })).status, 401);
+    assert.equal((await c.get('/auth/me')).status, 401);
+  });
+
+  test("user lists never include password hashes", async () => {
+    const { c } = await signup('Hash Check', 'hash@example.edu');
+    const b = await c.post('/boards', { title: 'Secrets?', template: 'blank' });
+    const json = JSON.stringify(b.body);
+    assert.equal(json.includes('passwordHash'), false);
+    assert.equal(json.includes('$2a$'), false); // bcrypt prefix
+  });
+});
+
 describe('boards, lists and cards', () => {
   let owner: Awaited<ReturnType<typeof signup>>;
   let boardId = '';

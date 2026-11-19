@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import clsx from 'clsx';
 import { useStore } from '../../store/useStore';
 import { initials } from '../../lib/id';
@@ -7,22 +8,36 @@ const sizes = { xs: 'h-5 w-5 text-[9px]', sm: 'h-6 w-6 text-[10px]', md: 'h-8 w-
 export function Avatar({ userId, size = 'sm', ring, online, className }: { userId: string; size?: keyof typeof sizes; ring?: boolean; online?: boolean; className?: string }) {
   const user = useStore((s) => s.users[userId]);
   const isMe = useStore((s) => s.me === userId);
+  const [broken, setBroken] = useState(false);
   if (!user) return null;
+  const title = online === undefined ? user.name : `${user.name}${online ? ' · online' : ''}`;
+  const photo = user.avatarUrl && !broken;
   return (
     <span className="relative inline-flex shrink-0">
-      <span
-        title={online === undefined ? user.name : `${user.name}${online ? ' · online' : ''}`}
-        className={clsx(
-          'inline-grid place-items-center rounded-full font-semibold',
-          isMe ? 'bg-ink text-surface' : 'text-white',
-          ring && 'ring-2 ring-surface',
-          sizes[size],
-          className,
-        )}
-        style={isMe ? undefined : { background: user.color }}
-      >
-        {initials(user.name)}
-      </span>
+      {photo ? (
+        <img
+          src={user.avatarUrl!}
+          alt={user.name}
+          title={title}
+          referrerPolicy="no-referrer" // Google photos refuse requests that send a referrer
+          onError={() => setBroken(true)}
+          className={clsx('rounded-full object-cover', ring && 'ring-2 ring-surface', sizes[size], className)}
+        />
+      ) : (
+        <span
+          title={title}
+          className={clsx(
+            'inline-grid place-items-center rounded-full font-semibold',
+            isMe ? 'bg-ink text-surface' : 'text-white',
+            ring && 'ring-2 ring-surface',
+            sizes[size],
+            className,
+          )}
+          style={isMe ? undefined : { background: user.color }}
+        >
+          {initials(user.name)}
+        </span>
+      )}
       {online && <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success ring-2 ring-surface" aria-hidden="true" />}
     </span>
   );

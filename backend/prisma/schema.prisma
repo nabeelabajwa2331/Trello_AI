@@ -15,7 +15,11 @@ model User {
   id           String   @id @default(cuid())
   name         String
   email        String   @unique
-  passwordHash String
+  /// null for people who only sign in with Google
+  passwordHash String?
+  /// Google account id ("sub"), set the first time they continue with Google
+  googleId     String?  @unique
+  avatarUrl    String?
   color        String
   createdAt    DateTime @default(now())
 
