@@ -35,6 +35,9 @@ All use the password `password123`.
 
 `npm run db:reset` (in `backend/`) wipes the database and reloads the demo data.
 
+### Tests
+`npm test` in `backend/` runs 19 API tests (auth, card ordering, validation, roles, invitations, notifications) against a separate `prisma/test.db`, so your demo data is never touched.
+
 ## How it fits together
 
 ```
