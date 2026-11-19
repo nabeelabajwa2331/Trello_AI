@@ -21,6 +21,7 @@ export default {
         success: token('success'),
         warning: token('warning'),
         danger: token('danger'),
+        chart: token('chart'),
         soon: { DEFAULT: token('soon-bg'), fg: token('soon-fg') },
         over: { DEFAULT: token('over-bg'), fg: token('over-fg') },
         done: { DEFAULT: token('done-bg'), fg: token('done-fg') },

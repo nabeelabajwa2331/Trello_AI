@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { HttpError, appOrigin, forbidden, handle, notFound, parse } from './http.js';
-import { requireUser, publicUser } from './auth.js';
+import { requireUser, publicUser, isAdmin } from './auth.js';
 import { requireRole, type Action } from './permissions.js';
 import { boardSnapshot, forRole } from './snapshot.js';
 import { inviteEmail, sendQuietly } from './mail.js';
@@ -120,7 +120,7 @@ api.get(
     }
 
     res.json({
-      me: publicUser(me),
+      me: { ...publicUser(me), isAdmin: isAdmin(me) },
       users,
       boards: snaps.map((s) => s.board),
       incoming: incoming.map((i) => ({ id: i.id, fromUserId: i.invitedById, role: i.role, boardTitle: i.board.title, boardCover: i.board.cover })),

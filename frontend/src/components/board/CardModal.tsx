@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
 import { Archive, ArrowRightLeft, Calendar, Check, CreditCard, MessageSquare, Tag, Trash2, Users, X } from 'lucide-react';
@@ -28,6 +28,14 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
   const [desc, setDesc] = useState(card?.description ?? '');
   const [editingDesc, setEditingDesc] = useState(false);
   useEffect(() => setTitle(card?.title ?? ''), [card?.title]);
+  // The title box grows to fit long titles instead of cutting them off (mostly on phones).
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
   useEffect(() => { if (!editingDesc) setDesc(card?.description ?? ''); }, [card?.description, editingDesc]);
 
   if (!card) {
@@ -67,12 +75,13 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
           {edit ? (
             <textarea
               id="card-title"
+              ref={titleRef}
               value={title}
               rows={1}
               onChange={(e) => setTitle(e.target.value.replace(/\n/g, ''))}
               onBlur={saveTitle}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); } }}
-              className="w-full resize-none rounded-md bg-transparent px-1 font-display text-xl font-bold focus:bg-bg focus:outline-none"
+              className="block w-full resize-none overflow-hidden rounded-md bg-transparent px-1 font-display text-lg font-bold leading-snug focus:bg-bg focus:outline-none sm:text-xl"
               aria-label="Card title"
               data-autofocus
             />

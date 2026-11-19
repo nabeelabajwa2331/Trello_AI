@@ -6,6 +6,13 @@ export const env = {
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
   /** OAuth Client ID from Google Cloud Console. Empty = "Continue with Google" is hidden. */
   googleClientId: (process.env.GOOGLE_CLIENT_ID ?? '').trim(),
+  /** Site admins: comma-separated emails. Only confirmed accounts with these emails get the admin panel. */
+  adminEmails: new Set(
+    (process.env.ADMIN_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  ),
   /** Public address of the site, used in emailed links. Falls back to the request's own address. */
   appUrl: (process.env.APP_URL ?? '').replace(/\/$/, ''),
   /** Outgoing email (password resets). Empty SMTP_HOST = links are printed to the server log instead. */

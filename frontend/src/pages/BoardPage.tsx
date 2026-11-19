@@ -5,19 +5,15 @@ import { toast } from 'sonner';
 import {
   DndContext,
   DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
   closestCenter,
   closestCorners,
   type CollisionDetection,
-  useSensor,
-  useSensors,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
+import { AUTO_SCROLL, hapticPickUp, useBoardSensors } from '../lib/dnd';
 import { Activity, Archive, Eye, Filter, LogOut, MoreHorizontal, Plus, Share2, Star, Trash2, X } from 'lucide-react';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { AppHeader } from '../components/AppHeader';
@@ -90,11 +86,7 @@ export default function BoardPage() {
     return () => void (document.title = 'Crewboard');
   }, [board?.title]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const sensors = useBoardSensors();
 
   const visible = useMemo(() => {
     if (!board) return {} as Layout;
@@ -128,6 +120,7 @@ export default function BoardPage() {
   const findContainer = (id: string, l: Layout) => (id in l ? id : Object.keys(l).find((k) => l[k].includes(id)));
 
   const onDragStart = (e: DragStartEvent) => {
+    hapticPickUp(e.activatorEvent);
     const type = e.active.data.current?.type as 'card' | 'list';
     if (type === 'card') {
       const snap = structuredClone(visible);
@@ -203,32 +196,36 @@ export default function BoardPage() {
       <AppHeader />
 
       {/* ---------- Board toolbar ---------- */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2.5 sm:px-6">
-        <span className="h-3 w-3 shrink-0 rounded" style={{ background: board.cover }} />
-        {renaming ? (
-          <div className="w-64">
-            <InlineInput initial={board.title} onSave={(v) => { if (v && v !== board.title) renameBoard(board.id, v); setRenaming(false); }} onCancel={() => setRenaming(false)} className="text-base" />
-          </div>
-        ) : (
-          <h1
-            className={clsx('truncate rounded-md px-1.5 py-0.5 text-lg font-bold', can(role, 'editBoard') && 'cursor-text hover:bg-column')}
-            onClick={() => can(role, 'editBoard') && setRenaming(true)}
-            title={can(role, 'editBoard') ? 'Click to rename' : undefined}
-          >
-            {board.title}
-          </h1>
-        )}
-        <button className={clsx('btn-quiet h-8 w-8 p-0', board.starred && 'text-warning')} onClick={() => toggleStar(board.id)} aria-label={board.starred ? 'Unstar board' : 'Star board'} aria-pressed={board.starred}>
-          <Star size={17} fill={board.starred ? 'currentColor' : 'none'} />
-        </button>
-        {role === 'viewer' && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-column px-2.5 py-1 text-xs font-semibold text-muted"><Eye size={13} /> View only</span>
-        )}
+      <div className="flex flex-col gap-1.5 border-b border-line bg-surface px-4 py-2 sm:flex-row sm:items-center sm:gap-2 sm:px-6 sm:py-2.5">
+        {/* Row 1 on phones: colour, title, star. Shares one row with the actions on wider screens. */}
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="h-3 w-3 shrink-0 rounded" style={{ background: board.cover }} aria-hidden="true" />
+          {renaming ? (
+            <div className="min-w-0 flex-1 sm:max-w-sm">
+              <InlineInput initial={board.title} onSave={(v) => { if (v && v !== board.title) renameBoard(board.id, v); setRenaming(false); }} onCancel={() => setRenaming(false)} className="text-base" />
+            </div>
+          ) : (
+            <h1
+              className={clsx('min-w-0 truncate rounded-md px-1.5 py-0.5 text-base font-bold sm:text-lg', can(role, 'editBoard') && 'cursor-text hover:bg-column')}
+              onClick={() => can(role, 'editBoard') && setRenaming(true)}
+              title={board.title}
+            >
+              {board.title}
+            </h1>
+          )}
+          <button className={clsx('btn-quiet h-8 w-8 shrink-0 p-0', board.starred && 'text-warning')} onClick={() => toggleStar(board.id)} aria-label={board.starred ? 'Unstar board' : 'Star board'} aria-pressed={board.starred}>
+            <Star size={17} fill={board.starred ? 'currentColor' : 'none'} />
+          </button>
+          {role === 'viewer' && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-column px-2.5 py-1 text-xs font-semibold text-muted"><Eye size={13} /> View only</span>
+          )}
+        </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <span className="mr-2 hidden items-center gap-2.5 sm:flex" title="People on this board. A green dot means they have it open.">
-            <AvatarStack ids={presence} max={5} online={online ?? [me]} />
-            <span className="flex items-center gap-1.5 text-xs text-muted">
+        <div className="flex items-center gap-1.5 sm:ml-auto">
+          <span className="mr-auto flex items-center gap-2.5 sm:mr-2" title="People on this board. A green dot means they have it open.">
+            <span className="sm:hidden"><AvatarStack ids={presence} max={3} online={online ?? [me]} /></span>
+            <span className="hidden sm:inline-flex"><AvatarStack ids={presence} max={5} online={online ?? [me]} /></span>
+            <span className="hidden items-center gap-1.5 text-xs text-muted sm:flex">
               <span className="h-2 w-2 rounded-full bg-success" /> {(online ?? [me]).length} here
             </span>
           </span>
@@ -282,7 +279,7 @@ export default function BoardPage() {
       )}
 
       {/* ---------- Lists ---------- */}
-      <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={onDragCancel}
+      <DndContext sensors={sensors} autoScroll={AUTO_SCROLL} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={onDragCancel}
         accessibility={{
           announcements: {
             onDragStart: ({ active: a }) => `Picked up ${a.data.current?.type === 'list' ? 'list' : 'card'} ${labelOf(board, String(a.id))}.`,

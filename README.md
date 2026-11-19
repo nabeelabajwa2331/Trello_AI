@@ -24,6 +24,12 @@ The whole app runs as **one Render web service**: the API serves the built React
 
 Every push to `main` redeploys automatically. The free plan sleeps after 15 minutes idle; the first visit after that takes about 30–50 seconds.
 
+## Admin panel
+
+`/admin` is for whoever runs the site (not board owners). It shows totals, a 14-day signups chart, setup status (email, Google, site address), a searchable user list, and a board list with counts only. Admins can resend confirmation emails, suspend accounts (blocks login and ends sessions) and delete accounts. A deleted user's boards go to the next person on them; boards with nobody else are deleted.
+
+Who is an admin: set `ADMIN_EMAILS` on Render (comma-separated). The account must have **confirmed** that email, so nobody can become an admin by signing up with your address. Admins can't suspend or delete themselves or each other. Card and comment contents are never shown in the panel.
+
 ## "Continue with Google"
 
 Sign-in with Google uses only the **OAuth Client ID**; no client secret is needed. The browser gets a short-lived access token from Google, and the backend verifies it (`backend/src/auth.ts`) before logging the person in. Someone who already signed up with the same email gets their existing account, not a second one.

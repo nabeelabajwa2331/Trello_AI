@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, LayoutGrid, LogOut, MailWarning, MonitorX, WifiOff } from 'lucide-react';
+import { Bell, LayoutGrid, LogOut, MailWarning, MonitorX, ShieldCheck, WifiOff } from 'lucide-react';
 import clsx from 'clsx';
 import { Logo } from './ui/Logo';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -129,6 +129,7 @@ function UserMenu() {
   const me = useStore((s) => s.users[s.me]);
   const logout = useStore((s) => s.logout);
   const logoutEverywhere = useStore((s) => s.logoutEverywhere);
+  const isAdmin = useStore((s) => s.isAdmin);
   const navigate = useNavigate();
   return (
     <Popover
@@ -146,6 +147,14 @@ function UserMenu() {
             <div className="truncate text-xs text-muted">{me?.email}</div>
           </div>
           <div className="my-1 border-t border-line" />
+          {isAdmin && (
+            <>
+              <MenuItem onClick={() => navigate('/admin')}>
+                <ShieldCheck size={15} /> Admin panel
+              </MenuItem>
+              <div className="my-1 border-t border-line" />
+            </>
+          )}
           <MenuItem
             onClick={async () => {
               await logout();

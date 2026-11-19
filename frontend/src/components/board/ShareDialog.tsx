@@ -50,11 +50,12 @@ export function ShareDialog({ board, myRole, open, onClose }: { board: Board; my
             <form onSubmit={submit} className="flex flex-col gap-2">
               <label htmlFor="invite-email" className="text-sm font-semibold">Invite by email</label>
               <div className="flex flex-wrap gap-2">
-                <div className="relative min-w-0 flex-1">
+                {/* Full width on phones so the address is readable; one row on wider screens */}
+                <div className="relative min-w-0 basis-full sm:basis-0 sm:flex-1">
                   <Mail size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                  <input id="invite-email" className="input pl-9" placeholder="teammate@university.edu" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <input id="invite-email" type="email" inputMode="email" autoComplete="off" className="input pl-9" placeholder="teammate@university.edu" value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
-                <select id="invite-role" aria-label="Role" className="input w-auto" value={role} onChange={(e) => setNewRole(e.target.value as Role)}>
+                <select id="invite-role" aria-label="Role" className="input w-auto flex-1 sm:flex-none" value={role} onChange={(e) => setNewRole(e.target.value as Role)}>
                   {ROLES.map((r) => <option key={r} value={r}>{roleInfo[r].label}</option>)}
                 </select>
                 <button className="btn-cta">Invite</button>

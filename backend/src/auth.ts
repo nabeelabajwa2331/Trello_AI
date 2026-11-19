@@ -50,10 +50,19 @@ export async function sessionFromToken(token: string | undefined): Promise<{ use
     return null;
   }
   if (!claims.sub || !claims.sid) return null;
-  const s = await prisma.session.findUnique({ where: { id: claims.sid } });
-  if (!s || s.userId !== claims.sub || s.expiresAt.getTime() < Date.now()) return null;
+  const s = await prisma.session.findUnique({ where: { id: claims.sid }, include: { user: { select: { suspendedAt: true } } } });
+  if (!s || s.userId !== claims.sub || s.expiresAt.getTime() < Date.now() || s.user.suspendedAt) return null;
   return { userId: s.userId, sessionId: s.id };
 }
+
+/** Site admins are listed in ADMIN_EMAILS and must have confirmed that email (so nobody can sign up as one). */
+export const isAdmin = (u: { email: string; emailVerifiedAt?: Date | null; suspendedAt?: Date | null }) =>
+  !!u.emailVerifiedAt && !u.suspendedAt && env.adminEmails.has(u.email.toLowerCase());
+
+const SUSPENDED = 'This account has been suspended. If you think this is a mistake, contact the site admin.';
+
+/** Used by the admin panel. */
+export { endAllSessions, sendVerification };
 
 async function startSession(req: Request, res: Response, userId: string) {
   const s = await prisma.session.create({ data: { userId, userAgent: req.get('user-agent')?.slice(0, 200), expiresAt: new Date(Date.now() + WEEK) } });
@@ -213,6 +222,7 @@ authRouter.post(
       recordFailure(body.email);
       throw new HttpError(401, "That email and password don't match. Check them and try again.");
     }
+    if (user.suspendedAt) throw new HttpError(403, SUSPENDED);
     failedLogins.delete(body.email);
     await startSession(req, res, user.id);
     res.json({ user: publicUser(user) });
@@ -239,6 +249,7 @@ authRouter.post(
 
     let user = (await prisma.user.findUnique({ where: { googleId: g.sub } })) ?? (await prisma.user.findUnique({ where: { email: g.email } }));
     let created = false;
+    if (user?.suspendedAt) throw new HttpError(403, SUSPENDED);
     if (user) {
       const takeOver = !user.emailVerifiedAt && user.googleId !== g.sub;
       if (takeOver) await endAllSessions(user.id);
@@ -331,6 +342,7 @@ authRouter.post(
       throw new HttpError(410, 'This reset link has expired or was already used. Ask for a new one.');
     }
     const existing = await prisma.user.findUniqueOrThrow({ where: { id: reset.userId } });
+    if (existing.suspendedAt) throw new HttpError(403, SUSPENDED);
     const [user] = await prisma.$transaction([
       prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: await bcrypt.hash(body.password, 10), emailVerifiedAt: existing.emailVerifiedAt ?? new Date() } }),
       prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
@@ -375,6 +387,6 @@ authRouter.get(
   handle(async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) throw new HttpError(401, 'Your session ended. Log in again.');
-    res.json({ user: publicUser(user) });
+    res.json({ user: { ...publicUser(user), isAdmin: isAdmin(user) } });
   }),
 );

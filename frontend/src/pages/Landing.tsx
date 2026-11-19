@@ -59,8 +59,15 @@ export default function Landing() {
       <section className={clsx(wrap, 'grid gap-12 pb-20 pt-14 lg:grid-cols-[1.25fr_1fr] lg:gap-16 lg:pt-20')}>
         <div className="flex flex-col gap-7">
           <p className="font-mono text-xs text-muted">Group chat · Thursday, 11:48 pm · report due Friday, 9:00 am</p>
-          <h1 className="font-wide text-[clamp(3rem,8.5vw,6.6rem)] font-black leading-[0.9] tracking-[-0.035em]">
-            Who’s doing <span className="whitespace-nowrap">the <mark className="bg-accent px-[0.08em] text-on-accent">slides?</mark></span>
+          <h1 className="font-wide text-[clamp(2.8rem,8.5vw,6.6rem)] font-black leading-[0.98] tracking-[-0.035em] sm:leading-[0.9]">
+            Who’s doing{' '}
+            <span className="whitespace-nowrap">
+              the{' '}
+              {/* Highlighter stroke through the middle of the word, so it never covers the line above */}
+              <mark className="bg-transparent bg-[linear-gradient(transparent_22%,rgb(var(--accent))_22%,rgb(var(--accent))_90%,transparent_90%)] px-[0.08em] text-on-accent [box-decoration-break:clone]">
+                slides?
+              </mark>
+            </span>
           </h1>
           <p className="max-w-[50ch] text-lg leading-relaxed text-muted">
             Every group project asks this at least once, usually the night before. Crewboard puts each task on a card with a name and a
@@ -167,7 +174,7 @@ export default function Landing() {
             It’s the same board you get after signing up, minus the saving. Cards turn amber the day before they’re due and red when they’re late.
           </p>
           <ul className="flex flex-col gap-2 text-sm">
-            {['Drag with a mouse or a finger', 'Use Tab, Space and the arrow keys', 'Reorder inside a list or move between lists'].map((t) => (
+            {['Drag with a mouse, or press and hold with a finger', 'Use Tab, Space and the arrow keys', 'Reorder inside a list or move between lists'].map((t) => (
               <li key={t} className="flex items-start gap-2"><Check size={16} className="mt-0.5 shrink-0 text-success" strokeWidth={3} /> {t}</li>
             ))}
           </ul>

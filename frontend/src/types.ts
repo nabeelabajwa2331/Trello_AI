@@ -11,6 +11,8 @@ export interface User {
   avatarUrl?: string | null;
   /** They clicked the confirmation email (or used Google / a reset link) */
   emailVerified?: boolean;
+  /** Site admin (only ever set on your own user) */
+  isAdmin?: boolean;
 }
 
 export interface Comment {

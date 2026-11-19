@@ -23,6 +23,8 @@ model User {
   color        String
   /// Set once they prove they own the email (verification link, password reset, or Google)
   emailVerifiedAt DateTime?
+  /// Set by a site admin. Suspended accounts can't log in and their sessions are ended.
+  suspendedAt  DateTime?
   createdAt    DateTime @default(now())
 
   memberships   BoardMember[]

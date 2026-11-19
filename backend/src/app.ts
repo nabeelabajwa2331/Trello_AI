@@ -8,6 +8,7 @@ import cors from 'cors';
 import { env } from './env.js';
 import { authRouter } from './auth.js';
 import { api } from './routes.js';
+import { admin } from './admin.js';
 import { errorHandler } from './http.js';
 import { initRealtime } from './realtime.js';
 
@@ -25,6 +26,7 @@ export function createAppServer() {
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
   app.use('/api/auth', authRouter);
+  app.use('/api/admin', admin);
   app.use('/api', api);
   app.use('/api', (_req, res) => res.status(404).json({ error: 'No such endpoint.' }));
 

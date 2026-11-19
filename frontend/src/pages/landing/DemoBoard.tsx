@@ -1,19 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import {
-  DndContext,
-  DragOverlay,
-  KeyboardSensor,
-  PointerSensor,
-  TouchSensor,
-  closestCorners,
-  useDroppable,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragOverEvent,
-} from '@dnd-kit/core';
-import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { DndContext, DragOverlay, closestCorners, useDroppable, type DragEndEvent, type DragOverEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { AUTO_SCROLL, hapticPickUp, useBoardSensors } from '../../lib/dnd';
 import { CSS } from '@dnd-kit/utilities';
 import { Hand, Play, RotateCcw } from 'lucide-react';
 import type { LabelId } from '../../types';
@@ -59,7 +48,8 @@ function SortableCard({ id, done, ghosted }: { id: string; done: boolean; ghoste
       {...attributes}
       {...listeners}
       aria-label={CARDS[id].title}
-      className={clsx('cursor-grab touch-manipulation rounded-card', (isDragging || ghosted) && 'opacity-30')}
+      onContextMenu={(e) => e.preventDefault()}
+      className={clsx('drag-handle cursor-grab touch-manipulation rounded-card', (isDragging || ghosted) && 'opacity-30')}
     >
       <CardFace id={id} done={done} />
     </div>
@@ -158,11 +148,7 @@ export function DemoBoard() {
   const plays = useRef(0);
   const touched = useRef(false);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
+  const sensors = useBoardSensors();
   const find = (id: string) => (id in cols ? id : COLS.find((c) => cols[c].includes(id)));
 
   /** Measure the real card and the bottom of the next list, then play the ghost between them. */
@@ -245,10 +231,10 @@ export function DemoBoard() {
       : phase === 'showing'
         ? `Like this: grab a card, carry it to “${hint?.target ?? 'Doing'}”, let go.`
         : phase === 'your-turn'
-          ? 'Your turn. Drag any card to another list.'
+          ? 'Your turn. Drag any card to another list (on a phone, press and hold it first).'
           : changed
             ? 'Nothing here is saved, so go ahead and move things around.'
-            : 'Drag the cards between lists. Nothing here is saved.';
+            : 'Drag the cards between lists (on a phone, press and hold first). Nothing here is saved.';
 
   return (
     <div className="rounded-modal border border-ink bg-surface p-3 shadow-hard sm:p-4">
@@ -272,7 +258,7 @@ export function DemoBoard() {
       </div>
 
       <div ref={area} className="relative" onPointerDownCapture={stopHint} onKeyDownCapture={stopHint}>
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={(e) => setActive(String(e.active.id))} onDragOver={onOver} onDragEnd={onEnd} onDragCancel={() => setActive(null)}>
+        <DndContext sensors={sensors} autoScroll={AUTO_SCROLL} collisionDetection={closestCorners} onDragStart={(e) => { hapticPickUp(e.activatorEvent); setActive(String(e.active.id)); }} onDragOver={onOver} onDragEnd={onEnd} onDragCancel={() => setActive(null)}>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
             {COLS.map((c) => <Column key={c} title={c} ids={cols[c]} ghostId={hint?.id ?? null} />)}
           </div>

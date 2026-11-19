@@ -10,6 +10,7 @@ import type { Server } from 'node:http';
 process.env.DATABASE_URL = 'file:./test.db';
 process.env.JWT_SECRET = 'test-secret';
 process.env.NODE_ENV = 'test'; // turns off rate limits so many signups in a row are fine
+process.env.ADMIN_EMAILS = 'site.admin@example.edu, Other.Admin@example.edu';
 
 let server: Server;
 let base = '';
@@ -173,6 +174,85 @@ describe('security', () => {
     await m.c.post(`/join/${link}`);
     assert.equal((await m.c.del(`/boards/${b.id}/members/${m.id}`)).status, 200);
     assert.equal((await m.c.get(`/boards/${b.id}`)).status, 404);
+  });
+});
+
+describe('site admin panel', () => {
+  let adminC: Client;
+  before(async () => {
+    adminC = (await signup('Site Admin', 'site.admin@example.edu')).c;
+  });
+
+  test('ADMIN_EMAILS accounts must confirm their email before getting in', async () => {
+    assert.equal((await adminC.get('/admin/overview')).status, 404, 'unconfirmed: the panel looks like it does not exist');
+    assert.equal((await adminC.get('/auth/me')).body.user.isAdmin, false);
+    await verify('site.admin@example.edu');
+    assert.equal((await adminC.get('/auth/me')).body.user.isAdmin, true);
+    const o = await adminC.get('/admin/overview');
+    assert.equal(o.status, 200);
+    assert.ok(o.body.users > 0);
+    assert.equal(o.body.signups.length, 14);
+  });
+
+  test('regular users get 404 for every admin endpoint', async () => {
+    const { c } = await signup('Regular Rita', 'regular@example.edu');
+    await verify('regular@example.edu');
+    for (const p of ['/admin/overview', '/admin/users', '/admin/boards']) assert.equal((await c.get(p)).status, 404, p);
+    assert.equal((await c.post('/admin/users/anything/suspend', { suspended: true })).status, 404);
+  });
+
+  test('user search and filters', async () => {
+    await signup('Searchable Sam', 'sam.search@example.edu');
+    const r = await adminC.get('/admin/users?q=sam.search');
+    assert.equal(r.body.total, 1);
+    assert.equal(r.body.users[0].emailVerified, false);
+    assert.deepEqual(r.body.users[0].signIn, ['email']);
+    const unverified = await adminC.get('/admin/users?filter=unverified');
+    assert.ok(unverified.body.users.every((u: { emailVerified: boolean }) => !u.emailVerified));
+  });
+
+  test('suspending ends sessions and blocks login; unsuspending restores it', async () => {
+    const s = await signup('Spam Bot', 'spam@example.edu');
+    assert.equal((await adminC.post(`/admin/users/${s.id}/suspend`, { suspended: true })).status, 200);
+    assert.equal((await s.c.get('/auth/me')).status, 401, 'session ended');
+    const login = await new Client().post('/auth/login', { email: 'spam@example.edu', password: 'password123' });
+    assert.equal(login.status, 403);
+    assert.match(login.body.error, /suspended/);
+    await adminC.post(`/admin/users/${s.id}/suspend`, { suspended: false });
+    assert.equal((await new Client().post('/auth/login', { email: 'spam@example.edu', password: 'password123' })).status, 200);
+  });
+
+  test("admins can't suspend or delete themselves or other admins", async () => {
+    const me = (await adminC.get('/auth/me')).body.user.id;
+    assert.equal((await adminC.post(`/admin/users/${me}/suspend`, { suspended: true })).status, 403);
+    const other = await signup('Other Admin', 'other.admin@example.edu');
+    await verify('other.admin@example.edu');
+    assert.equal((await adminC.del(`/admin/users/${other.id}`)).status, 403);
+  });
+
+  test('deleting a user hands their boards to the next person, or deletes empty ones', async () => {
+    const leaver = await signup('Leaving Lee', 'lee@example.edu');
+    const shared = (await leaver.c.post('/boards', { title: 'Shared', template: 'blank' })).body.board;
+    const solo = (await leaver.c.post('/boards', { title: 'Solo', template: 'blank' })).body.board;
+    const token = (await leaver.c.post(`/boards/${shared.id}/invite-link`, { role: 'member' })).body.board.inviteLink.token;
+    const heir = await signup('Heir Harper', 'harper@example.edu');
+    await heir.c.post(`/join/${token}`);
+
+    const r = await adminC.del(`/admin/users/${leaver.id}`);
+    assert.deepEqual([r.status, r.body.transferred, r.body.deleted], [200, 1, 1]);
+    const b = (await heir.c.get(`/boards/${shared.id}`)).body.board;
+    assert.deepEqual(b.members, [{ userId: heir.id, role: 'owner' }]);
+    assert.equal((await adminC.get(`/admin/boards?q=Solo`)).body.boards.some((x: { id: string }) => x.id === solo.id), false);
+  });
+
+  test('the boards list shows counts, never card contents', async () => {
+    const r = await adminC.get('/admin/boards?q=Shared');
+    assert.equal(r.status, 200);
+    const b = r.body.boards[0];
+    assert.equal(b.owner.email, 'harper@example.edu');
+    assert.equal(typeof b.cards, 'number');
+    assert.equal(JSON.stringify(r.body).includes('"cards":{'), false);
+    assert.equal('activity' in b, false);
   });
 });
 

@@ -12,6 +12,8 @@ type Bootstrap = { me: User; users: Record<string, User>; boards: Board[]; incom
 interface State {
   status: 'loading' | 'guest' | 'ready';
   me: string;
+  /** Site admin: shows the admin panel link. Server checks it again on every admin request. */
+  isAdmin: boolean;
   users: Record<string, User>;
   boards: Record<string, Board>;
   boardOrder: string[];
@@ -144,6 +146,7 @@ export const useStore = create<State>()(
     return {
       status: 'loading',
       me: '',
+      isAdmin: false,
       users: {},
       boards: {},
       boardOrder: [],
@@ -165,7 +168,7 @@ export const useStore = create<State>()(
       sessionEnded: () => {
         if (get().status !== 'ready') return;
         disconnectRealtime();
-        set((s) => Object.assign(s, { status: 'guest', me: '', users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {}, online: true }));
+        set((s) => Object.assign(s, { status: 'guest', me: '', isAdmin: false, users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {}, online: true }));
         toast('Your session ended. Log in again to continue.');
       },
       logoutEverywhere: async () => {
@@ -175,7 +178,7 @@ export const useStore = create<State>()(
           if (!(e instanceof ApiError && e.status === 401)) return void toast.error(errorMessage(e));
         }
         disconnectRealtime();
-        set((s) => Object.assign(s, { status: 'guest', me: '', users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
+        set((s) => Object.assign(s, { status: 'guest', me: '', isAdmin: false, users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
         toast('Logged out on every device.');
       },
       resendVerification: async () => {
@@ -217,13 +220,14 @@ export const useStore = create<State>()(
         disconnectRealtime();
         window.google?.accounts.id.disableAutoSelect();
         await api('/auth/logout', 'POST').catch(() => {});
-        set((s) => Object.assign(s, { status: 'guest', me: '', users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
+        set((s) => Object.assign(s, { status: 'guest', me: '', isAdmin: false, users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
       },
       bootstrap: async () => {
         const d = await api<Bootstrap>('/bootstrap');
         set((s) => {
           s.status = 'ready';
           s.me = d.me.id;
+          s.isAdmin = !!d.me.isAdmin;
           s.users = d.users;
           s.boards = Object.fromEntries(d.boards.map((b) => [b.id, b]));
           s.boardOrder = d.boards.map((b) => b.id);

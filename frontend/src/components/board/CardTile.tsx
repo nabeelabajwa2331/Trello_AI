@@ -95,7 +95,8 @@ export const CardTile = memo(function CardTile({ card, listId, done, canDrag, on
         }
         listeners?.onKeyDown?.(e);
       }}
-      className={clsx('rounded-card outline-none focus-visible:ring-2 focus-visible:ring-focus', canDrag ? 'cursor-grab touch-manipulation' : 'cursor-pointer')}
+      onContextMenu={(e) => canDrag && e.preventDefault()}
+      className={clsx('rounded-card outline-none focus-visible:ring-2 focus-visible:ring-focus', canDrag ? 'drag-handle cursor-grab touch-manipulation' : 'cursor-pointer')}
     >
       <CardView card={card} done={done} dragging={isDragging} />
     </div>

@@ -21,6 +21,9 @@
   --warning: 168 116 11;      /* #A8740B */
   --danger: 184 68 58;        /* #B8443A */
 
+  /* charts: deep ochre, validated for >= 3:1 on the card surface and the chroma/lightness band */
+  --chart: 168 116 0;       /* #A87400 */
+
   /* due-date chips */
   --soon-bg: 247 227 168;  --soon-fg: 110 82 0;
   --over-bg: 240 217 212;  --over-fg: 154 59 46;
@@ -40,6 +43,8 @@
   --success: 134 184 124;
   --warning: 230 181 84;
   --danger: 230 120 108;
+
+  --chart: 191 138 18;   /* #BF8A12, validated against the dark card surface */
 
   --soon-bg: 74 62 20;   --soon-fg: 244 210 122;
   --over-bg: 74 38 34;   --over-fg: 240 168 156;
@@ -78,6 +83,17 @@
   .eyebrow { @apply font-mono text-[11px] uppercase tracking-[0.12em] text-muted; }
   .font-wide { font-stretch: 118%; }
   .font-narrow { font-stretch: 80%; }
+}
+
+/*
+ * Draggable cards on touch screens: no text-selection or "copy / look up" pop-up on long press,
+ * which used to interrupt the press-and-hold that picks a card up.
+ */
+.drag-handle {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Thin horizontal scrollbar for the board canvas */

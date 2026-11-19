@@ -19,6 +19,8 @@ services:
         generateValue: true # Render creates a long random secret
       - key: GOOGLE_CLIENT_ID
         sync: false # your OAuth Client ID (…apps.googleusercontent.com)
+      - key: ADMIN_EMAILS
+        sync: false # who gets the admin panel, e.g. you@gmail.com (comma-separated; the email must be confirmed)
       # Password-reset emails. Without SMTP_HOST, reset links are written to the Render log instead.
       - key: APP_URL
         sync: false # e.g. https://crewboard-zgwk.onrender.com

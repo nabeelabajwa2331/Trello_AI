@@ -41,7 +41,7 @@ export function BoardColumn({ board, list, cardIds, canEdit, canDrag, onOpenCard
         overlay && 'rotate-[1.5deg] shadow-lift',
       )}
     >
-      <header className="flex items-center gap-2 px-3 pb-1 pt-2.5" {...attributes} {...listeners} tabIndex={canDrag ? 0 : -1} aria-roledescription={canDrag ? 'Draggable list' : undefined}>
+      <header className={clsx('flex items-center gap-2 px-3 pb-1 pt-2.5', canDrag && 'drag-handle touch-manipulation')} {...attributes} {...listeners} tabIndex={canDrag ? 0 : -1} aria-roledescription={canDrag ? 'Draggable list' : undefined}>
         {renaming ? (
           <InlineInput
             initial={list.title}
