@@ -6,9 +6,9 @@ A Kanban board for student and small-team projects: boards, lists and cards, ass
 
 | Where | Database | Data |
 |---|---|---|
-| Live site (Render) | PostgreSQL on Neon | **Real data only.** Starts empty; people sign up and create their own boards. Demo data can't be loaded into it: the seed script refuses any `postgresql://` database. |
-| Your laptop | SQLite file `backend/prisma/dev.db` | Demo accounts for development and testing. Never uploaded. |
-| Tests | SQLite file `backend/prisma/test.db` | Created and wiped by each test run. |
+| Live site (Render) | PostgreSQL on Neon | Real data only: the accounts and boards people create. |
+| Your laptop | SQLite file `backend/prisma/dev.db` | Starts empty. Sign up locally to try changes. Never uploaded. |
+| Automated tests | SQLite file `backend/prisma/test.db` | Temporary accounts the tests create and wipe on every run. |
 
 The app picks the database from `DATABASE_URL`: a `postgresql://` address uses PostgreSQL, anything else uses SQLite (`backend/scripts/prisma-provider.mjs`).
 
@@ -26,7 +26,7 @@ Every push to `main` redeploys automatically. The free plan sleeps after 15 minu
 
 ## "Continue with Google"
 
-Sign-in with Google uses only the **OAuth Client ID**; no client secret is needed. The browser gets a signed ID token from Google, and the backend verifies it (`backend/src/auth.ts`) before logging the person in. Someone who already signed up with the same email gets their existing account, not a second one.
+Sign-in with Google uses only the **OAuth Client ID**; no client secret is needed. The browser gets a short-lived access token from Google, and the backend verifies it (`backend/src/auth.ts`) before logging the person in. Someone who already signed up with the same email gets their existing account, not a second one.
 
 1. Google Cloud Console → **APIs & Services → Credentials** → your OAuth 2.0 Client ID (type **Web application**).
 2. Under **Authorized JavaScript origins**, add every address the app is opened from:
@@ -45,7 +45,7 @@ You need Node 20+. Two terminals:
 # 1. API (http://localhost:4000)
 cd backend
 npm install
-npm run setup     # creates the local SQLite database with demo accounts
+npm run setup     # creates an empty local SQLite database
 npm run dev
 
 # 2. Web app (http://localhost:5173)
@@ -56,22 +56,12 @@ npm run dev
 
 If port 5173 is busy, Vite picks the next free one (5174, …) and prints it.
 
-### Demo accounts (local only)
-These exist only in your local SQLite database, never on the live site. All use the password `password123`.
+Open the app, sign up, and create a board. To try live updates, sign up a second account in a private window and invite it to the board.
 
-| Email | Role on "CS-301 Final Project" |
-|---|---|
-| demo@crewboard.app | Owner |
-| sara@example.edu | Admin |
-| hamza@example.edu, ayesha@example.edu | Member |
-| omar@example.edu | Not on it. Owns two other boards and has invited Demo to one |
-
-**To see real-time updates:** log in as Demo in a normal window and as Sara in a private window, open the same board in both, and drag a card.
-
-`npm run db:reset` (in `backend/`) wipes the database and reloads the demo data.
+`npm run db:reset` (in `backend/`) empties the local database.
 
 ### Tests
-`npm test` in `backend/` runs 19 API tests (auth, card ordering, validation, roles, invitations, notifications) against a separate `prisma/test.db`, so your demo data is never touched.
+`npm test` in `backend/` runs 29 API tests (sign-in, Google, forgot password, card ordering, validation, roles, invitations, notifications) against a separate `prisma/test.db`. They never touch your local or live data.
 
 ## How it fits together
 
@@ -94,7 +84,6 @@ React (Vite) ──REST /api──▶ Express ──Prisma──▶ SQLite
 | Path | What it is |
 |---|---|
 | `backend/prisma/schema.prisma` | Data model |
-| `backend/prisma/seed.ts` | Demo data |
 | `backend/src/routes.ts` | All REST endpoints |
 | `backend/src/realtime.ts` | Socket.IO rooms, presence, broadcasts |
 | `backend/src/snapshot.ts` | Turns a board into the JSON shape the frontend uses |

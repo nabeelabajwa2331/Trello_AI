@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { Logo } from '../components/ui/Logo';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
@@ -15,14 +15,11 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const loginWithGoogle = useStore((s) => s.loginWithGoogle);
   const navigate = useNavigate();
   const location = useLocation();
-  const [params] = useSearchParams();
   const isSignup = mode === 'signup';
-  // Local development only: /login?demo=1 fills in the seeded demo account. Never active on the live site.
-  const isDemo = import.meta.env.DEV && params.get('demo') === '1';
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState(isDemo ? 'demo@crewboard.app' : '');
-  const [password, setPassword] = useState(isDemo ? 'password123' : '');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState(false);
@@ -77,11 +74,6 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
             <h1 className="font-wide text-3xl font-extrabold tracking-tight">{isSignup ? 'Create your account' : 'Welcome back'}</h1>
             <p className="text-muted">{isSignup ? 'Free for teams up to 10. Takes 30 seconds.' : 'Log in to see your boards.'}</p>
           </div>
-          {isDemo && !isSignup && (
-            <p className="rounded-[8px] border border-line bg-accent-soft px-3 py-2 text-sm">
-              Demo account filled in. To watch live updates, log in as <b>sara@example.edu</b> (same password) in a private window.
-            </p>
-          )}
           {errors.google && (
             <p role="alert" className="rounded-[8px] bg-over px-3 py-2 text-sm text-over-fg">
               {errors.google}
@@ -122,22 +114,23 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
             <button className="btn-cta mt-2 py-3 text-[15px]" disabled={busy}>
               {busy ? 'One moment…' : isSignup ? 'Create account' : 'Log in'}
             </button>
-            <div className="-mt-1 flex justify-end">
+            {/* One row under the button: switch login/signup on the left, forgot password on the right */}
+            <div className="-mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 text-sm">
+              <p className="text-muted">
+                {isSignup ? 'Already have an account? ' : 'New to Crewboard? '}
+                <Link to={isSignup ? '/login' : '/signup'} state={location.state} className="font-semibold text-ink underline decoration-accent decoration-2 underline-offset-4">
+                  {isSignup ? 'Log in' : 'Create an account'}
+                </Link>
+              </p>
               <Link
                 to="/forgot-password"
                 state={{ email: email.trim() }}
-                className="rounded text-sm font-medium text-muted underline decoration-line decoration-2 underline-offset-4 hover:text-ink hover:decoration-accent"
+                className="ml-auto rounded font-medium text-muted underline decoration-line decoration-2 underline-offset-4 hover:text-ink hover:decoration-accent"
               >
                 Forgot password?
               </Link>
             </div>
           </form>
-          <p className="text-sm text-muted">
-            {isSignup ? 'Already have an account? ' : 'New to Crewboard? '}
-            <Link to={isSignup ? '/login' : '/signup'} state={location.state} className="font-semibold text-ink underline decoration-accent decoration-2 underline-offset-4">
-              {isSignup ? 'Log in' : 'Create an account'}
-            </Link>
-          </p>
         </div>
       </div>
       <aside className="relative hidden overflow-hidden bg-ink p-12 text-surface lg:flex lg:flex-col lg:justify-end">
