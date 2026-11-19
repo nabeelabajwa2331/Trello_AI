@@ -115,10 +115,11 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
             <button className="btn-cta mt-2 py-3 text-[15px]" disabled={busy}>
               {busy ? 'One moment…' : isSignup ? 'Create account' : 'Log in'}
             </button>
-            {/* One row under the button: switch login/signup on the left, forgot password on the right */}
-            <div className="-mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 text-sm">
-              <p className="text-muted">
-                {isSignup ? 'Already have an account? ' : 'New to Crewboard? '}
+            {/* One row under the button: switch login/signup on the left, forgot password on the right.
+                Short wording + nowrap so both always fit on one line, even on a 320px phone. */}
+            <div className="-mt-1 flex items-center justify-between gap-3 text-[13px] sm:text-sm">
+              <p className="whitespace-nowrap text-muted">
+                {isSignup ? 'Have an account? ' : 'New here? '}
                 <Link to={isSignup ? '/login' : '/signup'} state={location.state} className="font-semibold text-ink underline decoration-accent decoration-2 underline-offset-4">
                   {isSignup ? 'Log in' : 'Create an account'}
                 </Link>
@@ -126,7 +127,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
               <Link
                 to="/forgot-password"
                 state={{ email: email.trim() }}
-                className="ml-auto rounded font-medium text-muted underline decoration-line decoration-2 underline-offset-4 hover:text-ink hover:decoration-accent"
+                className="shrink-0 whitespace-nowrap rounded font-medium text-muted underline decoration-line decoration-2 underline-offset-4 hover:text-ink hover:decoration-accent"
               >
                 Forgot password?
               </Link>

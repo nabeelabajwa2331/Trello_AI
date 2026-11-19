@@ -14,6 +14,7 @@ export function AppHeader() {
   const online = useStore((s) => s.online);
   const me = useStore((s) => s.users[s.me]);
   const resend = useStore((s) => s.resendVerification);
+  const adminPending = useStore((s) => s.adminPending);
   const [sending, setSending] = useState(false);
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface">
@@ -26,7 +27,16 @@ export function AppHeader() {
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-line bg-accent-soft px-4 py-2 text-center text-sm">
           <MailWarning size={15} className="shrink-0" />
           <span>
-            Confirm your email: we sent a link to <b>{me.email}</b>. You need it to accept invitations.
+            {adminPending ? (
+              <>
+                <b>You're listed as a site admin.</b> Confirm your email to open the admin panel: we sent a link to <b>{me.email}</b>. Or log out and
+                use <b>Continue with Google</b> with this address, which confirms it right away.
+              </>
+            ) : (
+              <>
+                Confirm your email: we sent a link to <b>{me.email}</b>. You need it to accept invitations.
+              </>
+            )}
           </span>
           <button
             className="font-semibold underline decoration-2 underline-offset-4 hover:decoration-ink disabled:opacity-60"

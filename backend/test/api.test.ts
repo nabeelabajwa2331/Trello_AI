@@ -186,6 +186,8 @@ describe('site admin panel', () => {
   test('ADMIN_EMAILS accounts must confirm their email before getting in', async () => {
     assert.equal((await adminC.get('/admin/overview')).status, 404, 'unconfirmed: the panel looks like it does not exist');
     assert.equal((await adminC.get('/auth/me')).body.user.isAdmin, false);
+    assert.equal((await adminC.get('/auth/me')).body.user.adminPending, true, 'but they are told why');
+    assert.equal((await adminC.get('/bootstrap')).body.me.adminPending, true);
     await verify('site.admin@example.edu');
     assert.equal((await adminC.get('/auth/me')).body.user.isAdmin, true);
     const o = await adminC.get('/admin/overview');

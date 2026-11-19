@@ -14,6 +14,8 @@ interface State {
   me: string;
   /** Site admin: shows the admin panel link. Server checks it again on every admin request. */
   isAdmin: boolean;
+  /** Listed as a site admin, but the email isn't confirmed yet. */
+  adminPending: boolean;
   users: Record<string, User>;
   boards: Record<string, Board>;
   boardOrder: string[];
@@ -147,6 +149,7 @@ export const useStore = create<State>()(
       status: 'loading',
       me: '',
       isAdmin: false,
+      adminPending: false,
       users: {},
       boards: {},
       boardOrder: [],
@@ -228,6 +231,7 @@ export const useStore = create<State>()(
           s.status = 'ready';
           s.me = d.me.id;
           s.isAdmin = !!d.me.isAdmin;
+          s.adminPending = !!(d.me as User & { adminPending?: boolean }).adminPending;
           s.users = d.users;
           s.boards = Object.fromEntries(d.boards.map((b) => [b.id, b]));
           s.boardOrder = d.boards.map((b) => b.id);

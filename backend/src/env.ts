@@ -8,7 +8,8 @@ export const env = {
   googleClientId: (process.env.GOOGLE_CLIENT_ID ?? '').trim(),
   /** Site admins: comma-separated emails. Only confirmed accounts with these emails get the admin panel. */
   adminEmails: new Set(
-    (process.env.ADMIN_EMAILS ?? '')
+    // ADMIN_EMAIL (no S) is accepted too, because it's an easy name to get wrong.
+    [process.env.ADMIN_EMAILS, process.env.ADMIN_EMAIL].filter(Boolean).join(',')
       .split(',')
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),

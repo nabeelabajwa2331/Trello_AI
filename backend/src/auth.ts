@@ -59,7 +59,10 @@ export async function sessionFromToken(token: string | undefined): Promise<{ use
 export const isAdmin = (u: { email: string; emailVerifiedAt?: Date | null; suspendedAt?: Date | null }) =>
   !!u.emailVerifiedAt && !u.suspendedAt && env.adminEmails.has(u.email.toLowerCase());
 
-const SUSPENDED = 'This account has been suspended. If you think this is a mistake, contact the site admin.';
+/** Listed in ADMIN_EMAILS but the email isn't confirmed yet: the app tells them why there's no admin panel. */
+export const isPendingAdmin = (u: { email: string; emailVerifiedAt?: Date | null }) => !u.emailVerifiedAt && env.adminEmails.has(u.email.toLowerCase());
+
+const SUSPENDED ='This account has been suspended. If you think this is a mistake, contact the site admin.';
 
 /** Used by the admin panel. */
 export { endAllSessions, sendVerification };
@@ -387,6 +390,6 @@ authRouter.get(
   handle(async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) throw new HttpError(401, 'Your session ended. Log in again.');
-    res.json({ user: { ...publicUser(user), isAdmin: isAdmin(user) } });
+    res.json({ user: { ...publicUser(user), isAdmin: isAdmin(user), adminPending: isPendingAdmin(user) } });
   }),
 );
