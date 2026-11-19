@@ -41,7 +41,8 @@ async function signup(name: string, email: string) {
 }
 
 before(async () => {
-  execSync('npx prisma db push --force-reset --skip-generate', { cwd: new URL('..', import.meta.url), env: process.env, stdio: 'ignore' });
+  // Re-pick the provider first: generated.prisma may still say postgresql after a push to Neon.
+  execSync('node scripts/prisma-provider.mjs && npx prisma db push --force-reset --skip-generate', { cwd: new URL('..', import.meta.url), env: process.env, stdio: 'ignore' });
   const { createAppServer } = await import('../src/app.js');
   server = createAppServer();
   await new Promise<void>((r) => server.listen(0, r));
@@ -78,6 +79,53 @@ describe('auth', () => {
   });
 });
 
+describe('forgot password', () => {
+  const sent: { to: string; text: string }[] = [];
+  before(async () => {
+    const { mailer } = await import('../src/mail.js');
+    mailer.send = async (m) => void sent.push({ to: m.to, text: m.text });
+  });
+  const tokenFrom = (text: string) => /reset-password\?token=([\w-]+)/.exec(text)?.[1] ?? '';
+
+  test("unknown emails get the same answer and no email", async () => {
+    const r = await new Client().post('/auth/forgot', { email: 'nobody-here@example.edu' });
+    assert.equal(r.status, 200);
+    assert.equal(sent.length, 0);
+  });
+
+  test('the emailed link sets a new password once, and logs you in', async () => {
+    await signup('Fiona Forgetful', 'fiona@example.edu');
+    assert.equal((await new Client().post('/auth/forgot', { email: 'FIONA@example.edu' })).status, 200);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].to, 'fiona@example.edu');
+    const token = tokenFrom(sent[0].text);
+    assert.ok(token.length > 30, 'email contains a reset link');
+
+    const c = new Client();
+    const r = await c.post('/auth/reset', { token, password: 'brand-new-pass' });
+    assert.equal(r.status, 200);
+    assert.equal((await c.get('/auth/me')).body.user.email, 'fiona@example.edu');
+
+    assert.equal((await new Client().post('/auth/login', { email: 'fiona@example.edu', password: 'password123' })).status, 401);
+    assert.equal((await new Client().post('/auth/login', { email: 'fiona@example.edu', password: 'brand-new-pass' })).status, 200);
+    assert.equal((await new Client().post('/auth/reset', { token, password: 'another-pass-1' })).status, 410); // used up
+  });
+
+  test('asking again within a minute does not send a second email', async () => {
+    const before = sent.length;
+    await signup('Rita Repeat', 'rita@example.edu');
+    await new Client().post('/auth/forgot', { email: 'rita@example.edu' });
+    await new Client().post('/auth/forgot', { email: 'rita@example.edu' });
+    assert.equal(sent.length, before + 1);
+  });
+
+  test('made-up tokens and short passwords are rejected', async () => {
+    assert.equal((await new Client().post('/auth/reset', { token: 'x'.repeat(43), password: 'long-enough-1' })).status, 410);
+    const t = tokenFrom(sent.at(-1)!.text);
+    assert.equal((await new Client().post('/auth/reset', { token: t, password: 'short' })).status, 400);
+  });
+});
+
 describe('continue with Google', () => {
   // Stand-in for Google's token check: the "credential" is just JSON describing the Google account.
   before(async () => {
@@ -88,6 +136,15 @@ describe('continue with Google', () => {
       if (p.bad) throw new HttpError(401, "Couldn't verify your Google sign-in. Try again.");
       return { sub: p.sub, email: p.email, name: p.name, picture: p.picture };
     };
+    google.verifyAccessToken = google.verify; // same stand-in for the styled button's access tokens
+  });
+
+  test('the styled button (access token) signs in the same way', async () => {
+    const c = new Client();
+    const r = await c.post('/auth/google', { accessToken: cred({ sub: 'g-at', email: 'tara@gmail.com', name: 'Tara Token' }) });
+    assert.equal(r.status, 201);
+    assert.equal((await c.get('/auth/me')).body.user.name, 'Tara Token');
+    assert.equal((await new Client().post('/auth/google', {})).status, 400);
   });
   const cred = (o: object) => JSON.stringify({ name: 'G User', picture: 'https://lh3.googleusercontent.com/a/x', ...o });
 

@@ -19,3 +19,16 @@ services:
         generateValue: true # Render creates a long random secret
       - key: GOOGLE_CLIENT_ID
         sync: false # your OAuth Client ID (…apps.googleusercontent.com)
+      # Password-reset emails. Without SMTP_HOST, reset links are written to the Render log instead.
+      - key: APP_URL
+        sync: false # e.g. https://crewboard-zgwk.onrender.com
+      - key: SMTP_HOST
+        sync: false # e.g. smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false # e.g. yourname@gmail.com
+      - key: SMTP_PASS
+        sync: false # Gmail: a 16-character app password, not your normal password
+      - key: MAIL_FROM
+        sync: false # e.g. Crewboard <yourname@gmail.com>

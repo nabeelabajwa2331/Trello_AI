@@ -30,6 +30,21 @@ model User {
   notifications Notification[] @relation("recipient")
   actedOn       Notification[] @relation("actor")
   invitesSent   Invite[]
+  resets        PasswordReset[]
+}
+
+/// One-time "forgot password" links. Only a SHA-256 hash of the token is stored.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Board {

@@ -26,7 +26,8 @@ interface State {
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   signup: (name: string, email: string, password: string) => Promise<void>;
-  loginWithGoogle: (credential: string) => Promise<void>;
+  loginWithGoogle: (accessToken: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   bootstrap: () => Promise<void>;
   applySnapshot: (snap: Snap, keepStar?: boolean) => void;
@@ -157,8 +158,13 @@ export const useStore = create<State>()(
         await get().bootstrap();
         startRealtime();
       },
-      loginWithGoogle: async (credential) => {
-        await api('/auth/google', 'POST', { credential });
+      loginWithGoogle: async (accessToken) => {
+        await api('/auth/google', 'POST', { accessToken });
+        await get().bootstrap();
+        startRealtime();
+      },
+      resetPassword: async (token, password) => {
+        await api('/auth/reset', 'POST', { token, password }); // also logs you in
         await get().bootstrap();
         startRealtime();
       },

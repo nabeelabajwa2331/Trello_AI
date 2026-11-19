@@ -52,11 +52,11 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
     }
   };
 
-  const continueWithGoogle = async (credential: string) => {
+  const continueWithGoogle = async (accessToken: string) => {
     setErrors({});
     setBusy(true);
     try {
-      await loginWithGoogle(credential);
+      await loginWithGoogle(accessToken);
       const from = (location.state as { from?: string } | null)?.from;
       navigate(from ?? '/boards', { replace: true });
     } catch (err) {
@@ -87,7 +87,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
               {errors.google}
             </p>
           )}
-          <GoogleButton mode={mode} onCredential={continueWithGoogle} disabled={busy} />
+          <GoogleButton onAccessToken={continueWithGoogle} onError={(m) => setErrors({ google: m })} disabled={busy} />
           <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
             {isSignup && (
               <Field id="name" label="Full name" error={errors.name}>
@@ -122,6 +122,15 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
             <button className="btn-cta mt-2 py-3 text-[15px]" disabled={busy}>
               {busy ? 'One moment…' : isSignup ? 'Create account' : 'Log in'}
             </button>
+            <div className="-mt-1 flex justify-end">
+              <Link
+                to="/forgot-password"
+                state={{ email: email.trim() }}
+                className="rounded text-sm font-medium text-muted underline decoration-line decoration-2 underline-offset-4 hover:text-ink hover:decoration-accent"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </form>
           <p className="text-sm text-muted">
             {isSignup ? 'Already have an account? ' : 'New to Crewboard? '}
