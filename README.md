@@ -1,36 +1,68 @@
 # Crewboard (Trello_AI)
 
-A Kanban board for student and small-team projects: boards, lists and cards, assignees, due dates, labels, comments, invitations with roles, an activity log and notifications, with live updates between teammates.
+A Kanban board for student and small-team projects: boards, lists and cards, assignees, due dates, labels, comments with @mentions, invitations with roles, an activity log and notifications, with live updates between teammates over WebSockets.
 
-## Frontend
+## Run it
+
+You need Node 18+. Two terminals:
 
 ```bash
+# 1. API (http://localhost:4000)
+cd backend
+npm install
+npm run setup     # creates the SQLite database and fills it with demo data
+npm run dev
+
+# 2. Web app (http://localhost:5173)
 cd frontend
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # type-check + production build
+npm run dev
 ```
 
-Stack: React 18, Vite, TypeScript, Tailwind CSS, dnd-kit (drag and drop), Zustand + Immer (state), React Router, Sonner (toasts), date-fns, lucide-react.
+If port 5173 is busy, Vite picks the next free one (5174, …) and prints it.
 
-### Try the live updates
-Open the same board in **two browser tabs**. Changes in one appear instantly in the other (via `BroadcastChannel`).
-The "Live demo" toggle on a board also simulates a teammate moving cards and commenting.
+### Demo accounts
+All use the password `password123`.
+
+| Email | Role on "CS-301 Final Project" |
+|---|---|
+| demo@crewboard.app | Owner |
+| sara@example.edu | Admin |
+| hamza@example.edu, ayesha@example.edu | Member |
+| omar@example.edu | Not on it. Owns two other boards and has invited Demo to one |
+
+**To see real-time updates:** log in as Demo in a normal window and as Sara in a private window, open the same board in both, and drag a card.
+
+`npm run db:reset` (in `backend/`) wipes the database and reloads the demo data.
+
+## How it fits together
+
+```
+React (Vite) ──REST /api──▶ Express ──Prisma──▶ SQLite
+     ▲                          │
+     └──── Socket.IO ◀──────────┘  after every change: "board:sync" to everyone on that board
+```
+
+- **Auth:** email and password, bcrypt hashes, JWT in an httpOnly cookie. The socket uses the same cookie.
+- **Every change** goes through one `mutate()` helper on the server (`backend/src/routes.ts`): check role → apply → write the activity log → push the full board to the board's room.
+- **Optimistic UI:** the frontend changes the screen immediately, then replaces it with the server's board. If the server refuses, a toast explains why and the board reloads, so the change rolls back.
+- **Card order** uses fractional positions, so a move rewrites one row. Lists renumber themselves if the gaps get too small.
+- **Permissions** (Owner / Admin / Member / Viewer) are checked on the server in `backend/src/permissions.ts`. The frontend copy in `frontend/src/lib/permissions.ts` only hides buttons.
+- **Rooms:** `user:<id>` for notifications, `board:<id>` for board changes and presence (who has the board open).
+- **Notifications** are sent when someone assigns you, @mentions you by first name, or invites you.
 
 ### Where things live
 
 | Path | What it is |
 |---|---|
-| `src/index.css`, `tailwind.config.js` | "Highlighter" palette tokens (light + dark) |
-| `src/store/useStore.ts` | All app state and actions; every change logs activity and broadcasts |
-| `src/lib/realtime.ts` | Real-time transport. Swap the 3 functions for Socket.IO when the backend exists |
-| `src/lib/permissions.ts` | Owner / Admin / Member / Viewer permission matrix |
-| `src/pages/Landing.tsx` | Landing page |
-| `src/pages/BoardPage.tsx` | Board view, drag-and-drop, filters |
-| `src/components/board/*` | Lists, cards, card modal, activity panel, share dialog |
+| `backend/prisma/schema.prisma` | Data model |
+| `backend/prisma/seed.ts` | Demo data |
+| `backend/src/routes.ts` | All REST endpoints |
+| `backend/src/realtime.ts` | Socket.IO rooms, presence, broadcasts |
+| `backend/src/snapshot.ts` | Turns a board into the JSON shape the frontend uses |
+| `frontend/src/store/useStore.ts` | App state and every action (optimistic update + API call) |
+| `frontend/src/lib/api.ts`, `lib/realtime.ts` | HTTP client and socket connection |
+| `frontend/src/index.css`, `tailwind.config.js` | Colour tokens (beige, graphite, yellow; light and dark) |
 
-### Connecting a backend later
-- Replace the mock login in `src/pages/AuthPage.tsx` with your auth API.
-- Load boards from the API (TanStack Query is a good fit) instead of `src/data/seed.ts`.
-- In `src/lib/realtime.ts`, use `socket.emit` / `socket.on` with one room per board.
-- Enforce the same permission matrix on the server.
+### Switching to PostgreSQL
+In `backend/prisma/schema.prisma` set `provider = "postgresql"`, put a Postgres URL in `backend/.env` as `DATABASE_URL`, then run `npm run setup`.

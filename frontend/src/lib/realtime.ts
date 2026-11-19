@@ -1,44 +1,46 @@
 /**
- * Real-time transport.
- *
- * Right now this uses BroadcastChannel, so two browser tabs on the same machine sync live.
- * When the backend exists, replace the body of these three functions with Socket.IO:
- *
- *   const socket = io(import.meta.env.VITE_API_URL, { withCredentials: true });
- *   joinBoard  -> socket.emit('board:join', boardId)
- *   publish    -> socket.emit(event.type, event)
- *   subscribe  -> socket.on('board:event', handler)
- *
- * Nothing else in the app needs to change.
+ * Socket.IO connection. The server puts each socket in one room per board the user belongs to,
+ * and pushes the full board after every change, so clients never drift apart.
  */
-import type { Board } from '../types';
+import { io, type Socket } from 'socket.io-client';
+import type { Board, Notification, User } from '../types';
 
-export type RealtimeEvent = {
-  type: 'board:sync';
-  board: Board;
-  log: { text: string; actorId: string; cardId?: string } | null;
-  origin: string;
-};
+export type SyncEvent = { board: Board; users: Record<string, User>; log: { text: string; actorId: string; cardId?: string } | null };
+export type InviteEvent = { type: 'invite'; invite: { id: string; fromUserId: string; role: string; boardTitle: string; boardCover: string } };
 
-const TAB_ID = Math.random().toString(36).slice(2);
-const channel: BroadcastChannel | null =
-  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('crewboard') : null;
-
-export function publish(event: Omit<RealtimeEvent, 'origin'>) {
-  try {
-    channel?.postMessage({ ...event, origin: TAB_ID });
-  } catch {
-    /* ignore: data could not be cloned */
-  }
+export interface Handlers {
+  onSync: (e: SyncEvent) => void;
+  onNotification: (n: Notification | InviteEvent) => void;
+  onRemoved: (boardId: string) => void;
+  onPresence: (boardId: string, userIds: string[]) => void;
+  onStatus: (online: boolean) => void;
+  onReconnect: () => void;
 }
 
-export function subscribe(handler: (e: RealtimeEvent) => void): () => void {
-  if (!channel) return () => {};
-  const listener = (msg: MessageEvent<RealtimeEvent>) => {
-    if (msg.data?.origin !== TAB_ID) handler(msg.data);
-  };
-  channel.addEventListener('message', listener);
-  return () => channel.removeEventListener('message', listener);
+let socket: Socket | null = null;
+
+export function connectRealtime(h: Handlers) {
+  socket?.disconnect();
+  socket = io(import.meta.env.VITE_SOCKET_URL ?? '/', { withCredentials: true, transports: ['websocket', 'polling'] });
+  let wasConnected = false;
+  socket.on('connect', () => {
+    h.onStatus(true);
+    if (wasConnected) h.onReconnect(); // we may have missed changes while offline
+    wasConnected = true;
+  });
+  socket.on('disconnect', () => h.onStatus(false));
+  socket.on('connect_error', () => h.onStatus(false));
+  socket.on('board:sync', h.onSync);
+  socket.on('notification', h.onNotification);
+  socket.on('board:removed', ({ boardId }: { boardId: string }) => h.onRemoved(boardId));
+  socket.on('presence', ({ boardId, userIds }: { boardId: string; userIds: string[] }) => h.onPresence(boardId, userIds));
 }
 
-export const isRealtimeAvailable = !!channel;
+export function disconnectRealtime() {
+  socket?.disconnect();
+  socket = null;
+}
+
+export function requestPresence(boardId: string, cb: (ids: string[]) => void) {
+  socket?.emit('presence:get', boardId, cb);
+}

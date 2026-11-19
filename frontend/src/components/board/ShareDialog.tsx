@@ -28,18 +28,19 @@ export function ShareDialog({ board, myRole, open, onClose }: { board: Board; my
   const canInvite = can(myRole, 'invite');
   const canManage = can(myRole, 'manageMembers');
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     const v = email.trim().toLowerCase();
     if (!/^\S+@\S+\.\S+$/.test(v)) return setError('Enter a valid email address.');
     if (board.invites.some((i) => i.email === v) || board.members.some((m) => users[m.userId]?.email === v)) return setError('That person is already invited or on the board.');
-    invite(board.id, v, role);
-    setEmail('');
     setError('');
-    toast(`Invite sent to ${v}`);
+    if (await invite(board.id, v, role)) {
+      setEmail('');
+      toast(`Invited ${v}. They’ll see it when they log in with that email.`);
+    }
   };
 
-  const link = board.inviteLink ? `${location.origin}/join/${board.id.slice(2)}?role=${board.inviteLink.role}` : '';
+  const link = board.inviteLink ? `${location.origin}/join/${board.inviteLink.token}` : '';
 
   return (
     <Dialog open={open} onClose={onClose} title={`Share “${board.title}”`} width="max-w-lg">

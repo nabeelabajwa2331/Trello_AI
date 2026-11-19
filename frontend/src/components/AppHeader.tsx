@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, LayoutGrid, LogOut, RotateCcw } from 'lucide-react';
+import { Bell, LayoutGrid, LogOut, WifiOff } from 'lucide-react';
 import clsx from 'clsx';
 import { Logo } from './ui/Logo';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -10,8 +10,14 @@ import { ago } from '../lib/dates';
 import { firstName } from '../lib/id';
 
 export function AppHeader() {
+  const online = useStore((s) => s.online);
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-line bg-surface">
+      {!online && (
+        <div role="status" className="flex items-center justify-center gap-2 bg-soon px-4 py-1.5 text-sm text-soon-fg">
+          <WifiOff size={14} /> Reconnecting… changes from your team will appear when you’re back online.
+        </div>
+      )}
       <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
         <Logo to="/boards" />
         <Link to="/boards" className="btn-quiet ml-2 hidden sm:inline-flex">
@@ -96,38 +102,29 @@ function NotificationBell() {
 }
 
 function UserMenu() {
+  const meId = useStore((s) => s.me);
   const me = useStore((s) => s.users[s.me]);
   const logout = useStore((s) => s.logout);
-  const resetDemo = useStore((s) => s.resetDemo);
   const navigate = useNavigate();
   return (
     <Popover
       align="right"
       trigger={({ toggle }) => (
         <button onClick={toggle} className="ml-1 rounded-full" aria-label="Account menu">
-          <Avatar userId="me" size="md" />
+          <Avatar userId={meId} size="md" />
         </button>
       )}
     >
-      {(close) => (
+      {() => (
         <div>
           <div className="px-2.5 py-2">
-            <div className="font-semibold">{me.name}</div>
-            <div className="truncate text-xs text-muted">{me.email || 'Demo account'}</div>
+            <div className="font-semibold">{me?.name}</div>
+            <div className="truncate text-xs text-muted">{me?.email}</div>
           </div>
           <div className="my-1 border-t border-line" />
           <MenuItem
-            onClick={() => {
-              resetDemo();
-              close();
-              navigate('/boards');
-            }}
-          >
-            <RotateCcw size={15} /> Reset demo data
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              logout();
+            onClick={async () => {
+              await logout();
               navigate('/');
             }}
           >

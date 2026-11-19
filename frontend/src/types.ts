@@ -67,7 +67,7 @@ export interface Board {
   cards: Record<string, Card>;
   members: Member[];
   invites: Invite[];
-  inviteLink: { role: Role; expiresAt: string } | null;
+  inviteLink: { role: Role; token: string; expiresAt: string } | null;
   activity: Activity[];
   updatedAt: string;
 }
@@ -87,7 +87,8 @@ export interface IncomingInvite {
   id: string;
   fromUserId: string;
   role: Role;
-  board: Board;
+  boardTitle: string;
+  boardCover: string;
 }
 
 export type TemplateId = 'blank' | 'class' | 'hackathon';

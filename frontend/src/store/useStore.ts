@@ -1,37 +1,41 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { toast } from 'sonner';
 import type { Board, Card, IncomingInvite, Notification, Role, TemplateId, User } from '../types';
-import { ME, TEAMMATES, boardFromTemplate, seedBoards, seedIncomingInvites } from '../data/seed';
-import { publish } from '../lib/realtime';
+import { api, ApiError, errorMessage } from '../lib/api';
+import { connectRealtime, disconnectRealtime } from '../lib/realtime';
 import { firstName, uid } from '../lib/id';
-import { COVERS } from '../lib/labels';
-import { isoDay } from '../lib/dates';
 
-type Log = { text: string; actorId?: string; cardId?: string };
+type Snap = { board: Board; users: Record<string, User> };
+type Bootstrap = { me: User; users: Record<string, User>; boards: Board[]; incoming: IncomingInvite[]; notifications: Notification[] };
 
 interface State {
+  status: 'loading' | 'guest' | 'ready';
   me: string;
-  session: boolean;
   users: Record<string, User>;
   boards: Record<string, Board>;
   boardOrder: string[];
   incoming: IncomingInvite[];
   notifications: Notification[];
-  simulateTeammates: boolean;
-  /** Card that should briefly highlight after a remote change. Not persisted. */
+  presence: Record<string, string[]>;
+  online: boolean;
+  /** Card that briefly highlights after a teammate changes it. */
   flash: { cardId: string; at: number } | null;
 
   // session
-  login: (name: string, email: string) => void;
-  logout: () => void;
-  resetDemo: () => void;
+  init: () => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  bootstrap: () => Promise<void>;
+  applySnapshot: (snap: Snap, keepStar?: boolean) => void;
+  refreshBoard: (boardId: string) => Promise<void>;
 
   // boards
-  createBoard: (title: string, template: TemplateId) => string;
+  createBoard: (title: string, template: TemplateId) => Promise<string | null>;
   renameBoard: (boardId: string, title: string) => void;
   toggleStar: (boardId: string) => void;
-  deleteBoard: (boardId: string) => void;
+  deleteBoard: (boardId: string) => Promise<boolean>;
 
   // lists
   addList: (boardId: string, title: string) => void;
@@ -41,281 +45,329 @@ interface State {
 
   // cards
   addCard: (boardId: string, listId: string, title: string) => void;
-  updateCard: (boardId: string, cardId: string, patch: Partial<Card>, logText?: string) => void;
+  updateCard: (boardId: string, cardId: string, patch: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'assignees' | 'due'>>, _log?: string) => void;
   applyLayout: (boardId: string, layout: Record<string, string[]>, cardId: string, fromListId: string) => void;
-  moveCard: (boardId: string, cardId: string, toListId: string, actorId?: string) => void;
+  moveCard: (boardId: string, cardId: string, toListId: string) => void;
   archiveCard: (boardId: string, cardId: string) => void;
   restoreCard: (boardId: string, cardId: string) => void;
-  addComment: (boardId: string, cardId: string, text: string, actorId?: string) => void;
+  addComment: (boardId: string, cardId: string, text: string) => void;
   editComment: (boardId: string, cardId: string, commentId: string, text: string) => void;
   deleteComment: (boardId: string, cardId: string, commentId: string) => void;
 
   // members
-  invite: (boardId: string, email: string, role: Role) => void;
+  invite: (boardId: string, email: string, role: Role) => Promise<boolean>;
   revokeInvite: (boardId: string, inviteId: string) => void;
   createInviteLink: (boardId: string, role: Role) => void;
   setRole: (boardId: string, userId: string, role: Role) => void;
   removeMember: (boardId: string, userId: string) => void;
-  acceptInvite: (id: string) => string | null;
+  acceptInvite: (id: string) => Promise<string | null>;
   declineInvite: (id: string) => void;
+  joinByToken: (token: string) => Promise<string>;
 
   // notifications
-  notify: (n: Omit<Notification, 'id' | 'read' | 'createdAt'>) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
-
-  // realtime
-  applyRemote: (board: Board, log: { text: string; actorId: string; cardId?: string } | null) => void;
-  setSimulate: (on: boolean) => void;
 }
 
-export const findListOf = (board: Board, cardId: string) =>
-  board.listOrder.find((id) => board.lists[id]?.cardIds.includes(cardId));
+export const findListOf = (board: Board, cardId: string) => board.listOrder.find((id) => board.lists[id]?.cardIds.includes(cardId));
 
-const freshData = () => {
-  const boards = seedBoards();
-  return {
-    users: Object.fromEntries([...TEAMMATES, { id: ME, name: 'You', email: '', color: '#2A2926' }].map((u) => [u.id, u])),
-    boards: Object.fromEntries(boards.map((b) => [b.id, b])),
-    boardOrder: boards.map((b) => b.id),
-    incoming: seedIncomingInvites(),
-    notifications: [] as Notification[],
-  };
-};
+const onBoardPage = (boardId: string) => location.pathname.startsWith(`/b/${boardId}`);
 
 export const useStore = create<State>()(
-  persist(
-    immer((set, get) => {
-      /** Mutate one board, add an activity entry, then broadcast the new board to teammates. */
-      const commit = (boardId: string, recipe: (b: Board) => void, log?: Log) => {
-        set((s) => {
-          const b = s.boards[boardId];
-          if (!b) return;
-          recipe(b);
-          if (log) {
-            b.activity.unshift({ id: uid('a-'), userId: log.actorId ?? s.me, text: log.text, cardId: log.cardId, createdAt: new Date().toISOString() });
-            b.activity = b.activity.slice(0, 200);
+  immer((set, get) => {
+    /**
+     * Optimistic update: change the screen now, send the request, then take the server's board as the truth.
+     * If the request fails, show why and reload the board, which rolls the change back.
+     */
+    const run = async (boardId: string, optimistic: ((b: Board) => void) | null, request: () => Promise<Snap>): Promise<Snap | null> => {
+      if (optimistic) set((s) => void (s.boards[boardId] && optimistic(s.boards[boardId])));
+      try {
+        const snap = await request();
+        get().applySnapshot(snap);
+        return snap;
+      } catch (e) {
+        toast.error(errorMessage(e));
+        await get().refreshBoard(boardId);
+        return null;
+      }
+    };
+
+    const startRealtime = () =>
+      connectRealtime({
+        onSync: ({ board, users, log }) => {
+          if (!get().boards[board.id]) return;
+          get().applySnapshot({ board, users }, true);
+          if (log && log.actorId !== get().me) {
+            if (log.cardId) set((s) => void (s.flash = { cardId: log.cardId!, at: Date.now() }));
+            if (onBoardPage(board.id)) toast(`${firstName(get().users[log.actorId]?.name ?? 'Someone')} ${log.text}`);
           }
-          b.updatedAt = new Date().toISOString();
-        });
-        const board = get().boards[boardId];
-        if (board) publish({ type: 'board:sync', board, log: log ? { text: log.text, actorId: log.actorId ?? ME, cardId: log.cardId } : null });
-      };
-
-      const cardTitle = (boardId: string, cardId: string) => get().boards[boardId]?.cards[cardId]?.title ?? 'a card';
-      const listTitle = (boardId: string, listId: string) => get().boards[boardId]?.lists[listId]?.title ?? 'a list';
-
-      return {
-        me: ME,
-        session: false,
-        ...freshData(),
-        simulateTeammates: true,
-        flash: null,
-
-        login: (name, email) =>
-          set((s) => {
-            s.session = true;
-            s.users[ME] = { ...s.users[ME], name: name.trim() || 'You', email };
-          }),
-        logout: () => set((s) => void (s.session = false)),
-        resetDemo: () => set((s) => Object.assign(s, freshData())),
-
-        createBoard: (title, template) => {
-          const cover = COVERS[get().boardOrder.length % COVERS.length];
-          const b = boardFromTemplate(title.trim(), template, cover);
-          set((s) => {
-            s.boards[b.id] = b;
-            s.boardOrder.unshift(b.id);
-          });
-          return b.id;
         },
-        renameBoard: (boardId, title) => commit(boardId, (b) => void (b.title = title), { text: `renamed the board to “${title}”` }),
-        toggleStar: (boardId) => set((s) => void (s.boards[boardId] && (s.boards[boardId].starred = !s.boards[boardId].starred))),
-        deleteBoard: (boardId) =>
+        onNotification: (n) => {
+          if ('type' in n) {
+            set((s) => void s.incoming.unshift(n.invite as IncomingInvite));
+            toast(`${firstName(get().users[n.invite.fromUserId]?.name ?? 'Someone')} invited you to “${n.invite.boardTitle}”`);
+            return;
+          }
+          set((s) => void s.notifications.unshift(n));
+          if (!get().users[n.actorId]) void get().bootstrap();
+          toast(`${firstName(get().users[n.actorId]?.name ?? 'Someone')} ${n.text}`);
+        },
+        onRemoved: (boardId) => {
+          const title = get().boards[boardId]?.title;
           set((s) => {
             delete s.boards[boardId];
             s.boardOrder = s.boardOrder.filter((id) => id !== boardId);
-            s.notifications = s.notifications.filter((n) => n.boardId !== boardId);
-          }),
+          });
+          if (title) toast(`You no longer have access to “${title}”.`);
+        },
+        onPresence: (boardId, ids) => set((s) => void (s.presence[boardId] = ids)),
+        onStatus: (online) => set((s) => void (s.online = online)),
+        onReconnect: () => void get().bootstrap(),
+      });
 
-        addList: (boardId, title) =>
-          commit(
-            boardId,
-            (b) => {
-              const id = uid('l-');
-              b.lists[id] = { id, title, cardIds: [] };
-              b.listOrder.push(id);
-            },
-            { text: `added the list “${title}”` },
-          ),
-        renameList: (boardId, listId, title) => {
-          const old = listTitle(boardId, listId);
-          commit(boardId, (b) => void (b.lists[listId].title = title), { text: `renamed the list “${old}” to “${title}”` });
-        },
-        deleteList: (boardId, listId) => {
-          const old = listTitle(boardId, listId);
-          commit(
-            boardId,
-            (b) => {
-              delete b.lists[listId];
-              b.listOrder = b.listOrder.filter((id) => id !== listId);
-            },
-            { text: `deleted the list “${old}”` },
-          );
-        },
-        reorderLists: (boardId, order) => commit(boardId, (b) => void (b.listOrder = order), { text: 'reordered the lists' }),
+    return {
+      status: 'loading',
+      me: '',
+      users: {},
+      boards: {},
+      boardOrder: [],
+      incoming: [],
+      notifications: [],
+      presence: {},
+      online: true,
+      flash: null,
 
-        addCard: (boardId, listId, title) => {
-          const id = uid('c-');
-          commit(
-            boardId,
-            (b) => {
-              b.cards[id] = { id, title, description: '', labels: [], assignees: [], due: null, comments: [], createdAt: new Date().toISOString() };
-              b.lists[listId].cardIds.push(id);
-            },
-            { text: `added “${title}” to ${listTitle(boardId, listId)}`, cardId: id },
-          );
-        },
-        updateCard: (boardId, cardId, patch, logText) =>
-          commit(boardId, (b) => void Object.assign(b.cards[cardId], patch), logText ? { text: logText, cardId } : undefined),
+      /* ---------------- session ---------------- */
+      init: async () => {
+        try {
+          await get().bootstrap();
+          startRealtime();
+        } catch {
+          set((s) => void (s.status = 'guest'));
+        }
+      },
+      login: async (email, password) => {
+        await api('/auth/login', 'POST', { email, password });
+        await get().bootstrap();
+        startRealtime();
+      },
+      signup: async (name, email, password) => {
+        await api('/auth/signup', 'POST', { name, email, password });
+        await get().bootstrap();
+        startRealtime();
+      },
+      logout: async () => {
+        disconnectRealtime();
+        await api('/auth/logout', 'POST').catch(() => {});
+        set((s) => Object.assign(s, { status: 'guest', me: '', users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
+      },
+      bootstrap: async () => {
+        const d = await api<Bootstrap>('/bootstrap');
+        set((s) => {
+          s.status = 'ready';
+          s.me = d.me.id;
+          s.users = d.users;
+          s.boards = Object.fromEntries(d.boards.map((b) => [b.id, b]));
+          s.boardOrder = d.boards.map((b) => b.id);
+          s.incoming = d.incoming;
+          s.notifications = d.notifications;
+        });
+      },
+      applySnapshot: ({ board, users }, keepStar) =>
+        set((s) => {
+          const prev = s.boards[board.id];
+          s.boards[board.id] = keepStar && prev ? { ...board, starred: prev.starred } : board;
+          Object.assign(s.users, users);
+          if (!s.boardOrder.includes(board.id)) s.boardOrder.unshift(board.id);
+        }),
+      refreshBoard: async (boardId) => {
+        try {
+          get().applySnapshot(await api<Snap>(`/boards/${boardId}`));
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 404)
+            set((s) => {
+              delete s.boards[boardId];
+              s.boardOrder = s.boardOrder.filter((id) => id !== boardId);
+            });
+        }
+      },
 
-        applyLayout: (boardId, layout, cardId, fromListId) => {
-          const toListId = Object.keys(layout).find((id) => layout[id].includes(cardId));
-          const moved = toListId && toListId !== fromListId;
-          commit(
-            boardId,
-            (b) => {
-              for (const [listId, ids] of Object.entries(layout)) if (b.lists[listId]) b.lists[listId].cardIds = ids;
-            },
-            moved
-              ? { text: `moved “${cardTitle(boardId, cardId)}” from ${listTitle(boardId, fromListId)} to ${listTitle(boardId, toListId!)}`, cardId }
-              : undefined,
-          );
-        },
-        moveCard: (boardId, cardId, toListId, actorId) => {
-          const b = get().boards[boardId];
-          if (!b) return;
-          const from = findListOf(b, cardId);
-          if (!from || from === toListId) return;
-          commit(
-            boardId,
-            (d) => {
-              d.lists[from].cardIds = d.lists[from].cardIds.filter((id) => id !== cardId);
-              d.lists[toListId].cardIds.push(cardId);
-            },
-            { text: `moved “${cardTitle(boardId, cardId)}” from ${listTitle(boardId, from)} to ${listTitle(boardId, toListId)}`, cardId, actorId },
-          );
-          if (actorId && actorId !== ME) set((s) => void (s.flash = { cardId, at: Date.now() }));
-        },
-        archiveCard: (boardId, cardId) => {
-          const b = get().boards[boardId];
-          const from = b && findListOf(b, cardId);
-          if (!from) return;
-          commit(
-            boardId,
-            (d) => {
-              d.lists[from].cardIds = d.lists[from].cardIds.filter((id) => id !== cardId);
-              d.cards[cardId].archived = true;
-              d.cards[cardId].archivedFrom = from;
-            },
-            { text: `archived “${cardTitle(boardId, cardId)}”`, cardId },
-          );
-        },
-        restoreCard: (boardId, cardId) =>
-          commit(
-            boardId,
-            (d) => {
-              const c = d.cards[cardId];
-              const target = (c.archivedFrom && d.lists[c.archivedFrom]?.id) || d.listOrder[0];
-              if (!target) return;
-              c.archived = false;
-              d.lists[target].cardIds.push(cardId);
-            },
-            { text: `restored “${cardTitle(boardId, cardId)}”`, cardId },
-          ),
-        addComment: (boardId, cardId, text, actorId) => {
-          const s = get();
-          const author = actorId ?? s.me;
-          commit(
-            boardId,
-            (b) => void b.cards[cardId].comments.push({ id: uid('m-'), userId: author, text, createdAt: new Date().toISOString() }),
-            { text: `commented on “${cardTitle(boardId, cardId)}”`, cardId, actorId: author },
-          );
-          // A teammate @mentioning you creates a notification.
-          const myFirst = firstName(s.users[s.me].name).toLowerCase();
-          if (author !== s.me && new RegExp(`@(${myFirst}|you)\\b`, 'i').test(text)) {
-            get().notify({ text: `mentioned you on “${cardTitle(boardId, cardId)}”`, actorId: author, boardId, cardId });
-          }
-        },
-        editComment: (boardId, cardId, commentId, text) =>
-          commit(boardId, (b) => {
+      /* ---------------- boards ---------------- */
+      createBoard: async (title, template) => {
+        try {
+          const snap = await api<Snap>('/boards', 'POST', { title, template });
+          get().applySnapshot(snap);
+          return snap.board.id;
+        } catch (e) {
+          toast.error(errorMessage(e));
+          return null;
+        }
+      },
+      renameBoard: (boardId, title) => void run(boardId, (b) => void (b.title = title), () => api(`/boards/${boardId}`, 'PATCH', { title })),
+      toggleStar: (boardId) => {
+        const starred = !get().boards[boardId]?.starred;
+        set((s) => void (s.boards[boardId] && (s.boards[boardId].starred = starred)));
+        api(`/boards/${boardId}/star`, 'POST', { starred }).catch((e) => {
+          toast.error(errorMessage(e));
+          set((s) => void (s.boards[boardId] && (s.boards[boardId].starred = !starred)));
+        });
+      },
+      deleteBoard: async (boardId) => {
+        try {
+          await api(`/boards/${boardId}`, 'DELETE');
+          set((s) => {
+            delete s.boards[boardId];
+            s.boardOrder = s.boardOrder.filter((id) => id !== boardId);
+          });
+          return true;
+        } catch (e) {
+          toast.error(errorMessage(e));
+          return false;
+        }
+      },
+
+      /* ---------------- lists ---------------- */
+      addList: (boardId, title) =>
+        void run(
+          boardId,
+          (b) => {
+            const id = uid('tmp-');
+            b.lists[id] = { id, title, cardIds: [] };
+            b.listOrder.push(id);
+          },
+          () => api(`/boards/${boardId}/lists`, 'POST', { title }),
+        ),
+      renameList: (boardId, listId, title) => void run(boardId, (b) => void (b.lists[listId].title = title), () => api(`/lists/${listId}`, 'PATCH', { title })),
+      deleteList: (boardId, listId) =>
+        void run(
+          boardId,
+          (b) => {
+            delete b.lists[listId];
+            b.listOrder = b.listOrder.filter((id) => id !== listId);
+          },
+          () => api(`/lists/${listId}`, 'DELETE'),
+        ),
+      reorderLists: (boardId, order) => void run(boardId, (b) => void (b.listOrder = order), () => api(`/boards/${boardId}/list-order`, 'PUT', { order })),
+
+      /* ---------------- cards ---------------- */
+      addCard: (boardId, listId, title) =>
+        void run(
+          boardId,
+          (b) => {
+            const id = uid('tmp-');
+            b.cards[id] = { id, title, description: '', labels: [], assignees: [], due: null, comments: [], createdAt: new Date().toISOString() };
+            b.lists[listId].cardIds.push(id);
+          },
+          () => api(`/lists/${listId}/cards`, 'POST', { title }),
+        ),
+      updateCard: (boardId, cardId, patch) =>
+        void run(boardId, (b) => void (b.cards[cardId] && Object.assign(b.cards[cardId], patch)), () => api(`/cards/${cardId}`, 'PATCH', patch)),
+      applyLayout: (boardId, layout, cardId, fromListId) => {
+        const b = get().boards[boardId];
+        if (!b) return;
+        const toListId = Object.keys(layout).find((id) => layout[id].includes(cardId));
+        if (!toListId) return;
+        const index = layout[toListId].indexOf(cardId);
+        if (toListId === fromListId && b.lists[fromListId].cardIds.indexOf(cardId) === index) return; // dropped where it started
+        void run(
+          boardId,
+          (d) => {
+            for (const [lid, ids] of Object.entries(layout)) if (d.lists[lid]) d.lists[lid].cardIds = ids;
+          },
+          () => api(`/cards/${cardId}/move`, 'POST', { toListId, index }),
+        );
+      },
+      moveCard: (boardId, cardId, toListId) => {
+        const b = get().boards[boardId];
+        const from = b && findListOf(b, cardId);
+        if (!b || !from || from === toListId) return;
+        const index = b.lists[toListId].cardIds.length;
+        void run(
+          boardId,
+          (d) => {
+            d.lists[from].cardIds = d.lists[from].cardIds.filter((id) => id !== cardId);
+            d.lists[toListId].cardIds.push(cardId);
+          },
+          () => api(`/cards/${cardId}/move`, 'POST', { toListId, index }),
+        );
+      },
+      archiveCard: (boardId, cardId) =>
+        void run(
+          boardId,
+          (d) => {
+            const from = findListOf(d, cardId);
+            if (from) d.lists[from].cardIds = d.lists[from].cardIds.filter((id) => id !== cardId);
+            d.cards[cardId].archived = true;
+            d.cards[cardId].archivedFrom = from;
+          },
+          () => api(`/cards/${cardId}/archive`, 'POST'),
+        ),
+      restoreCard: (boardId, cardId) => void run(boardId, null, () => api(`/cards/${cardId}/restore`, 'POST')),
+      addComment: (boardId, cardId, text) =>
+        void run(
+          boardId,
+          (b) => void b.cards[cardId].comments.push({ id: uid('tmp-'), userId: get().me, text, createdAt: new Date().toISOString() }),
+          () => api(`/cards/${cardId}/comments`, 'POST', { text }),
+        ),
+      editComment: (boardId, cardId, commentId, text) =>
+        void run(
+          boardId,
+          (b) => {
             const c = b.cards[cardId].comments.find((x) => x.id === commentId);
             if (c) Object.assign(c, { text, edited: true });
-          }),
-        deleteComment: (boardId, cardId, commentId) =>
-          commit(boardId, (b) => void (b.cards[cardId].comments = b.cards[cardId].comments.filter((x) => x.id !== commentId))),
+          },
+          () => api(`/comments/${commentId}`, 'PATCH', { text }),
+        ),
+      deleteComment: (boardId, cardId, commentId) =>
+        void run(boardId, (b) => void (b.cards[cardId].comments = b.cards[cardId].comments.filter((x) => x.id !== commentId)), () => api(`/comments/${commentId}`, 'DELETE')),
 
-        invite: (boardId, email, role) =>
-          commit(boardId, (b) => void b.invites.push({ id: uid('i-'), email, role, createdAt: new Date().toISOString() }), {
-            text: `invited ${email} as ${role}`,
-          }),
-        revokeInvite: (boardId, inviteId) => commit(boardId, (b) => void (b.invites = b.invites.filter((i) => i.id !== inviteId))),
-        createInviteLink: (boardId, role) => commit(boardId, (b) => void (b.inviteLink = { role, expiresAt: isoDay(7) })),
-        setRole: (boardId, userId, role) =>
-          commit(
-            boardId,
-            (b) => {
-              const m = b.members.find((x) => x.userId === userId);
-              if (m) m.role = role;
-            },
-            { text: `changed ${get().users[userId]?.name ?? 'a member'}'s role to ${role}` },
-          ),
-        removeMember: (boardId, userId) =>
-          commit(
-            boardId,
-            (b) => {
-              b.members = b.members.filter((m) => m.userId !== userId);
-              for (const c of Object.values(b.cards)) c.assignees = c.assignees.filter((a) => a !== userId);
-            },
-            { text: `removed ${get().users[userId]?.name ?? 'a member'} from the board` },
-          ),
-        acceptInvite: (id) => {
-          const inv = get().incoming.find((i) => i.id === id);
-          if (!inv) return null;
-          set((s) => {
-            const b = structuredClone(inv.board);
-            b.members.push({ userId: s.me, role: inv.role });
-            b.activity.unshift({ id: uid('a-'), userId: s.me, text: 'joined the board', createdAt: new Date().toISOString() });
-            s.boards[b.id] = b;
-            s.boardOrder.unshift(b.id);
-            s.incoming = s.incoming.filter((i) => i.id !== id);
-          });
-          return inv.board.id;
-        },
-        declineInvite: (id) => set((s) => void (s.incoming = s.incoming.filter((i) => i.id !== id))),
+      /* ---------------- members ---------------- */
+      invite: async (boardId, email, role) => !!(await run(boardId, null, () => api(`/boards/${boardId}/invites`, 'POST', { email, role }))),
+      revokeInvite: (boardId, inviteId) => void run(boardId, (b) => void (b.invites = b.invites.filter((i) => i.id !== inviteId)), () => api(`/invites/${inviteId}`, 'DELETE')),
+      createInviteLink: (boardId, role) => void run(boardId, null, () => api(`/boards/${boardId}/invite-link`, 'POST', { role })),
+      setRole: (boardId, userId, role) =>
+        void run(
+          boardId,
+          (b) => {
+            const m = b.members.find((x) => x.userId === userId);
+            if (m) m.role = role;
+          },
+          () => api(`/boards/${boardId}/members/${userId}`, 'PATCH', { role }),
+        ),
+      removeMember: (boardId, userId) =>
+        void run(boardId, (b) => void (b.members = b.members.filter((m) => m.userId !== userId)), () => api(`/boards/${boardId}/members/${userId}`, 'DELETE')),
+      acceptInvite: async (id) => {
+        try {
+          const snap = await api<Snap>(`/invites/${id}/accept`, 'POST');
+          get().applySnapshot(snap);
+          set((s) => void (s.incoming = s.incoming.filter((i) => i.id !== id)));
+          return snap.board.id;
+        } catch (e) {
+          toast.error(errorMessage(e));
+          return null;
+        }
+      },
+      declineInvite: (id) => {
+        set((s) => void (s.incoming = s.incoming.filter((i) => i.id !== id)));
+        api(`/invites/${id}/decline`, 'POST').catch((e) => toast.error(errorMessage(e)));
+      },
+      joinByToken: async (token) => {
+        const snap = await api<Snap>(`/join/${token}`, 'POST');
+        get().applySnapshot(snap);
+        return snap.board.id;
+      },
 
-        notify: (n) =>
-          set((s) => {
-            s.notifications.unshift({ ...n, id: uid('n-'), read: false, createdAt: new Date().toISOString() });
-            s.notifications = s.notifications.slice(0, 50);
-          }),
-        markRead: (id) => set((s) => void s.notifications.forEach((n) => n.id === id && (n.read = true))),
-        markAllRead: () => set((s) => void s.notifications.forEach((n) => (n.read = true))),
-
-        applyRemote: (board, log) =>
-          set((s) => {
-            if (!s.boards[board.id]) return;
-            s.boards[board.id] = board;
-            if (log?.cardId) s.flash = { cardId: log.cardId, at: Date.now() };
-          }),
-        setSimulate: (on) => set((s) => void (s.simulateTeammates = on)),
-      };
-    }),
-    {
-      name: 'crewboard-v2',
-      partialize: ({ flash: _flash, ...rest }) => rest,
-    },
-  ),
+      /* ---------------- notifications ---------------- */
+      markRead: (id) => {
+        set((s) => void s.notifications.forEach((n) => n.id === id && (n.read = true)));
+        api(`/notifications/${id}/read`, 'POST').catch(() => {});
+      },
+      markAllRead: () => {
+        set((s) => void s.notifications.forEach((n) => (n.read = true)));
+        api('/notifications/read-all', 'POST').catch(() => {});
+      },
+    };
+  }),
 );
 
 /** Current user's role on a board. */

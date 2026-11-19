@@ -22,7 +22,6 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
   const move = useStore((s) => s.moveCard);
   const archive = useStore((s) => s.archiveCard);
   const restore = useStore((s) => s.restoreCard);
-  const notify = useStore((s) => s.notify);
   const edit = can(role, 'editCards');
 
   const [title, setTitle] = useState(card?.title ?? '');
@@ -220,17 +219,6 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
                 Archive
               </SideButton>
             )}
-            {/* Demo helper: shows how an assignment notification looks */}
-            <button
-              className="mt-3 text-left text-[11px] text-muted underline-offset-2 hover:underline"
-              onClick={() => {
-                const mate = board.members.find((m) => m.userId !== me)?.userId;
-                if (mate) notify({ text: `assigned you to “${card.title}”`, actorId: mate, boardId: board.id, cardId: card.id });
-                toast('Sample notification added to the bell');
-              }}
-            >
-              Preview a notification
-            </button>
           </aside>
         )}
       </div>

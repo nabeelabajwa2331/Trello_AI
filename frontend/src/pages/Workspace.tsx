@@ -18,6 +18,7 @@ export default function Workspace() {
   const order = useStore((s) => s.boardOrder);
   const incoming = useStore((s) => s.incoming);
   const users = useStore((s) => s.users);
+  const meId = useStore((s) => s.me);
   const me = useStore((s) => s.users[s.me]);
   const accept = useStore((s) => s.acceptInvite);
   const decline = useStore((s) => s.declineInvite);
@@ -34,14 +35,14 @@ export default function Workspace() {
       for (const lid of b.listOrder)
         for (const cid of b.lists[lid].cardIds) {
           const c = b.cards[cid];
-          if (c.due && c.assignees.includes('me') && !doneIds.has(cid)) {
+          if (c.due && c.assignees.includes(meId) && !doneIds.has(cid)) {
             const days = differenceInCalendarDays(parseISO(c.due), new Date());
             if (days <= 7) out.push({ board: b, cardId: cid, title: c.title, due: c.due, days });
           }
         }
     }
     return out.sort((a, b) => a.days - b.days);
-  }, [list]);
+  }, [list, meId]);
 
   return (
     <div className="min-h-screen">
@@ -50,7 +51,7 @@ export default function Workspace() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="eyebrow">Workspace</p>
-            <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Hi {firstName(me.name)}, here's what's on</h1>
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight">Hi {firstName(me?.name ?? '')}, here's what's on</h1>
           </div>
           <button className="btn-cta" onClick={() => setCreating(true)}>
             <Plus size={17} /> New board
@@ -63,7 +64,7 @@ export default function Workspace() {
               <div key={inv.id} className="flex flex-wrap items-center gap-3 rounded-modal border border-line bg-accent-soft/70 p-4">
                 <Avatar userId={inv.fromUserId} size="md" />
                 <p className="min-w-0 flex-1">
-                  <b>{users[inv.fromUserId]?.name}</b> invited you to <b>{inv.board.title}</b> as {inv.role}.
+                  <b>{users[inv.fromUserId]?.name}</b> invited you to <b>{inv.boardTitle}</b> as {inv.role}.
                 </p>
                 <div className="flex gap-2">
                   <button className="btn-ghost" onClick={() => decline(inv.id)}>
@@ -71,8 +72,8 @@ export default function Workspace() {
                   </button>
                   <button
                     className="btn-primary"
-                    onClick={() => {
-                      const id = accept(inv.id);
+                    onClick={async () => {
+                      const id = await accept(inv.id);
                       if (id) navigate(`/b/${id}`);
                     }}
                   >
@@ -192,11 +193,15 @@ function NewBoardDialog({ open, onClose }: { open: boolean; onClose: () => void 
   const [title, setTitle] = useState('');
   const [template, setTemplate] = useState<TemplateId>('class');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return setError('Give the board a name, like “CS-301 Final Project”.');
-    const id = createBoard(title, template);
+    setBusy(true);
+    const id = await createBoard(title.trim(), template);
+    setBusy(false);
+    if (!id) return;
     toast('Board created');
     setTitle('');
     setError('');
@@ -230,7 +235,7 @@ function NewBoardDialog({ open, onClose }: { open: boolean; onClose: () => void 
           <button type="button" className="btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn-cta">Create board</button>
+          <button className="btn-cta" disabled={busy}>{busy ? 'Creating…' : 'Create board'}</button>
         </div>
       </form>
     </Dialog>

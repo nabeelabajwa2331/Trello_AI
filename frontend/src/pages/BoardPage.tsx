@@ -18,7 +18,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Activity, Eye, Filter, Plus, Radio, Share2, Star, X } from 'lucide-react';
+import { Activity, Eye, Filter, Plus, Share2, Star, X } from 'lucide-react';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { AppHeader } from '../components/AppHeader';
 import { BoardColumn, InlineInput } from '../components/board/BoardColumn';
@@ -30,7 +30,7 @@ import { AvatarStack } from '../components/ui/Avatar';
 import { LabelChip } from '../components/ui/Chips';
 import { Popover } from '../components/ui/Popover';
 import { useStore, useMyRole } from '../store/useStore';
-import { useTeammateSim } from '../hooks/useTeammateSim';
+import { requestPresence } from '../lib/realtime';
 import { can } from '../lib/permissions';
 import { LABEL_IDS } from '../lib/labels';
 import type { Board, LabelId } from '../types';
@@ -51,8 +51,7 @@ export default function BoardPage() {
   const board = useStore((s) => s.boards[boardId]);
   const me = useStore((s) => s.me);
   const role = useMyRole(boardId);
-  const simulate = useStore((s) => s.simulateTeammates);
-  const setSimulate = useStore((s) => s.setSimulate);
+  const online = useStore((s) => s.presence[boardId]);
   const applyLayout = useStore((s) => s.applyLayout);
   const reorderLists = useStore((s) => s.reorderLists);
   const addList = useStore((s) => s.addList);
@@ -75,7 +74,10 @@ export default function BoardPage() {
   const [fDue, setFDue] = useState<DueFilter>('any');
   const filtering = fMine || fLabels.length > 0 || fDue !== 'any';
 
-  useTeammateSim(boardId, !!active);
+  // Ask who is here right now; later changes arrive as "presence" events.
+  useEffect(() => {
+    if (boardId) requestPresence(boardId, (ids) => useStore.setState((s) => ({ presence: { ...s.presence, [boardId]: ids } })));
+  }, [boardId]);
 
   useEffect(() => {
     if (board) document.title = `${board.title} · Crewboard`;
@@ -217,17 +219,12 @@ export default function BoardPage() {
         )}
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 hidden items-center gap-2 sm:flex" title="People on this board">
-            <AvatarStack ids={presence} max={5} />
+          <span className="mr-2 hidden items-center gap-2.5 sm:flex" title="People on this board. A green dot means they have it open.">
+            <AvatarStack ids={presence} max={5} online={online ?? [me]} />
+            <span className="flex items-center gap-1.5 text-xs text-muted">
+              <span className="h-2 w-2 rounded-full bg-success" /> {(online ?? [me]).length} here
+            </span>
           </span>
-          <button
-            className={clsx('btn-quiet gap-1.5 px-2.5 text-xs', simulate && 'text-success')}
-            onClick={() => { setSimulate(!simulate); toast(simulate ? 'Teammate demo paused' : 'Teammate demo on: someone will move cards every few seconds'); }}
-            aria-pressed={simulate}
-            title="Simulate teammates working on this board"
-          >
-            <Radio size={15} /> <span className="hidden md:inline">{simulate ? 'Live demo on' : 'Live demo off'}</span>
-          </button>
           <FilterMenu
             mine={fMine} setMine={setFMine} labels={fLabels} setLabels={setFLabels} due={fDue} setDue={setFDue}
             active={filtering}

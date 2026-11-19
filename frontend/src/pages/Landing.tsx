@@ -12,7 +12,7 @@ const wrap = 'mx-auto w-full max-w-6xl px-4 sm:px-6';
 const h2 = 'font-display font-wide text-[clamp(1.9rem,4vw,3rem)] font-extrabold leading-[1.02] tracking-[-0.02em]';
 
 export default function Landing() {
-  const session = useStore((s) => s.session);
+  const session = useStore((s) => s.status === 'ready');
   const [menu, setMenu] = useState(false);
   const startHref = session ? '/boards' : '/signup';
   const links: [string, string][] = [
