@@ -1,5 +1,6 @@
-// Crewboard data model. SQLite for local development.
-// To switch to PostgreSQL: change provider to "postgresql" and DATABASE_URL.
+// Crewboard data model.
+// The provider below is a default: scripts/prisma-provider.mjs switches it to "postgresql"
+// automatically when DATABASE_URL is a postgres:// URL (production on Neon/Render).
 
 generator client {
   provider = "prisma-client-js"

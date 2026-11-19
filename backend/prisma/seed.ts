@@ -12,6 +12,18 @@ const day = (offset: number) => new Date(Date.now() + offset * 864e5).toISOStrin
 const ago = (mins: number) => new Date(Date.now() - mins * 60_000);
 
 async function main() {
+  // Demo data is for local development only. The real (PostgreSQL) database only ever holds real users' data.
+  if (/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL ?? '')) {
+    console.error('Refusing to load demo data into a PostgreSQL database. Demo data is only for the local SQLite database.');
+    process.exitCode = 1;
+    return;
+  }
+  // Safety: never wipe a database that already has people in it unless asked to (npm run db:reset).
+  const existing = await prisma.user.count();
+  if (existing > 0 && !process.argv.includes('--reset')) {
+    console.log(`The database already has ${existing} users, so the demo data was not loaded. To wipe everything and reload it, run: npm run db:reset`);
+    return;
+  }
   await prisma.board.deleteMany();
   await prisma.user.deleteMany();
 

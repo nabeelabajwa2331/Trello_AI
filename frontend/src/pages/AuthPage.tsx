@@ -15,7 +15,8 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const location = useLocation();
   const [params] = useSearchParams();
   const isSignup = mode === 'signup';
-  const isDemo = params.get('demo') === '1';
+  // Local development only: /login?demo=1 fills in the seeded demo account. Never active on the live site.
+  const isDemo = import.meta.env.DEV && params.get('demo') === '1';
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState(isDemo ? 'demo@crewboard.app' : '');

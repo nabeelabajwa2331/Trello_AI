@@ -1,0 +1,13 @@
+{
+  "name": "crewboard",
+  "private": true,
+  "description": "Build and start scripts used by Render. For local development, see README.md.",
+  "scripts": {
+    "build": "npm ci --prefix frontend --include=dev && npm run build --prefix frontend && npm ci --prefix backend --include=dev",
+    "start": "npm run start:prod --prefix backend",
+    "test": "npm test --prefix backend"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

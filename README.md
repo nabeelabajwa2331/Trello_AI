@@ -2,15 +2,37 @@
 
 A Kanban board for student and small-team projects: boards, lists and cards, assignees, due dates, labels, comments with @mentions, invitations with roles, an activity log and notifications, with live updates between teammates over WebSockets.
 
-## Run it
+## Databases
 
-You need Node 18+. Two terminals:
+| Where | Database | Data |
+|---|---|---|
+| Live site (Render) | PostgreSQL on Neon | **Real data only.** Starts empty; people sign up and create their own boards. Demo data can't be loaded into it: the seed script refuses any `postgresql://` database. |
+| Your laptop | SQLite file `backend/prisma/dev.db` | Demo accounts for development and testing. Never uploaded. |
+| Tests | SQLite file `backend/prisma/test.db` | Created and wiped by each test run. |
+
+The app picks the database from `DATABASE_URL`: a `postgresql://` address uses PostgreSQL, anything else uses SQLite (`backend/scripts/prisma-provider.mjs`).
+
+## Deploy (Render + Neon, both free)
+
+The whole app runs as **one Render web service**: the API serves the built React app, so the login cookie and live updates work on a single domain.
+
+1. **Neon:** create a project at neon.tech and copy the connection string (`postgresql://…?sslmode=require`).
+2. **Render:** New → **Blueprint** → pick this GitHub repo. Render reads `render.yaml`.
+   When it asks for `DATABASE_URL`, paste the Neon connection string. `JWT_SECRET` is generated for you.
+3. Render runs `npm run build`, then `npm start`. On start, `prisma db push` creates the tables in Neon (empty).
+4. Open the Render URL, sign up as the first real user, create a board, and invite your team.
+
+Every push to `main` redeploys automatically. The free plan sleeps after 15 minutes idle; the first visit after that takes about 30–50 seconds.
+
+## Run it locally
+
+You need Node 20+. Two terminals:
 
 ```bash
 # 1. API (http://localhost:4000)
 cd backend
 npm install
-npm run setup     # creates the SQLite database and fills it with demo data
+npm run setup     # creates the local SQLite database with demo accounts
 npm run dev
 
 # 2. Web app (http://localhost:5173)
@@ -21,8 +43,8 @@ npm run dev
 
 If port 5173 is busy, Vite picks the next free one (5174, …) and prints it.
 
-### Demo accounts
-All use the password `password123`.
+### Demo accounts (local only)
+These exist only in your local SQLite database, never on the live site. All use the password `password123`.
 
 | Email | Role on "CS-301 Final Project" |
 |---|---|
@@ -67,5 +89,5 @@ React (Vite) ──REST /api──▶ Express ──Prisma──▶ SQLite
 | `frontend/src/lib/api.ts`, `lib/realtime.ts` | HTTP client and socket connection |
 | `frontend/src/index.css`, `tailwind.config.js` | Colour tokens (beige, graphite, yellow; light and dark) |
 
-### Switching to PostgreSQL
-In `backend/prisma/schema.prisma` set `provider = "postgresql"`, put a Postgres URL in `backend/.env` as `DATABASE_URL`, then run `npm run setup`.
+### Looking inside the database
+`npm run studio` in `backend/` opens Prisma Studio in your browser for whichever database `DATABASE_URL` points to. On the live database, Neon's dashboard also has a table viewer and SQL editor.
