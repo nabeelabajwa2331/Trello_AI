@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, LayoutGrid, LogOut, WifiOff } from 'lucide-react';
+import { Bell, LayoutGrid, LogOut, MailWarning, MonitorX, WifiOff } from 'lucide-react';
 import clsx from 'clsx';
 import { Logo } from './ui/Logo';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -11,11 +12,33 @@ import { firstName } from '../lib/id';
 
 export function AppHeader() {
   const online = useStore((s) => s.online);
+  const me = useStore((s) => s.users[s.me]);
+  const resend = useStore((s) => s.resendVerification);
+  const [sending, setSending] = useState(false);
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface">
       {!online && (
         <div role="status" className="flex items-center justify-center gap-2 bg-soon px-4 py-1.5 text-sm text-soon-fg">
           <WifiOff size={14} /> Reconnecting… changes from your team will appear when you’re back online.
+        </div>
+      )}
+      {me && me.emailVerified === false && (
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-line bg-accent-soft px-4 py-2 text-center text-sm">
+          <MailWarning size={15} className="shrink-0" />
+          <span>
+            Confirm your email: we sent a link to <b>{me.email}</b>. You need it to accept invitations.
+          </span>
+          <button
+            className="font-semibold underline decoration-2 underline-offset-4 hover:decoration-ink disabled:opacity-60"
+            disabled={sending}
+            onClick={async () => {
+              setSending(true);
+              await resend();
+              setSending(false);
+            }}
+          >
+            {sending ? 'Sending…' : 'Send it again'}
+          </button>
         </div>
       )}
       <div className="flex h-14 items-center gap-3 px-4 sm:px-6">
@@ -105,6 +128,7 @@ function UserMenu() {
   const meId = useStore((s) => s.me);
   const me = useStore((s) => s.users[s.me]);
   const logout = useStore((s) => s.logout);
+  const logoutEverywhere = useStore((s) => s.logoutEverywhere);
   const navigate = useNavigate();
   return (
     <Popover
@@ -129,6 +153,14 @@ function UserMenu() {
             }}
           >
             <LogOut size={15} /> Log out
+          </MenuItem>
+          <MenuItem
+            onClick={async () => {
+              await logoutEverywhere();
+              navigate('/login');
+            }}
+          >
+            <MonitorX size={15} /> Log out on every device
           </MenuItem>
         </div>
       )}

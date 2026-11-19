@@ -17,6 +17,7 @@ export const env = {
     from: process.env.MAIL_FROM ?? process.env.SMTP_USER ?? 'Crewboard <no-reply@crewboard.app>',
   },
   isProd: process.env.NODE_ENV === 'production',
+  isTest: process.env.NODE_ENV === 'test',
 };
 
 if (env.isProd && env.jwtSecret === 'dev-only-secret-change-me') {

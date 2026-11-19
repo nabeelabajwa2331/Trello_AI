@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, MailCheck } from 'lucide-react';
 import { Logo } from '../components/ui/Logo';
@@ -86,6 +86,60 @@ export function ForgotPasswordPage() {
       <Link to="/login" className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted hover:text-ink">
         <ArrowLeft size={15} /> Back to log in
       </Link>
+    </Shell>
+  );
+}
+
+/** Opened from the "Confirm your email" message. Works whether or not this browser is logged in. */
+export function VerifyEmailPage() {
+  const [params] = useSearchParams();
+  const token = params.get('token') ?? '';
+  const confirmEmail = useStore((s) => s.confirmEmail);
+  const loggedIn = useStore((s) => s.status === 'ready');
+  const [state, setState] = useState<'working' | 'done' | 'failed'>('working');
+  const [error, setError] = useState('');
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    if (!token) {
+      setError('This confirmation link is incomplete. Copy the whole link from the email.');
+      return setState('failed');
+    }
+    confirmEmail(token)
+      .then(() => setState('done'))
+      .catch((e) => {
+        setError(errorMessage(e));
+        setState('failed');
+      });
+  }, [token, confirmEmail]);
+
+  return (
+    <Shell>
+      {state === 'working' && <p className="text-muted">Confirming your email…</p>}
+      {state === 'done' && (
+        <>
+          <span className="grid h-12 w-12 place-items-center rounded-full border border-ink bg-accent text-on-accent">
+            <MailCheck size={22} />
+          </span>
+          <div className="flex flex-col gap-2">
+            <h1 className="font-wide text-3xl font-extrabold tracking-tight">Email confirmed</h1>
+            <p className="text-muted">Teammates can now invite you to their boards, and you can accept the invitations waiting for you.</p>
+          </div>
+          <Link to={loggedIn ? '/boards' : '/login'} className="btn-cta self-start">{loggedIn ? 'Go to your boards' : 'Log in'}</Link>
+        </>
+      )}
+      {state === 'failed' && (
+        <>
+          <div className="flex flex-col gap-2">
+            <h1 className="font-wide text-3xl font-extrabold tracking-tight">This link doesn't work anymore</h1>
+            <p className="text-muted">{error}</p>
+          </div>
+          <Link to={loggedIn ? '/boards' : '/login'} className="btn-cta self-start">{loggedIn ? 'Go to your boards' : 'Log in'}</Link>
+          {loggedIn && <p className="text-sm text-muted">You can send a new link from the yellow banner at the top of your boards.</p>}
+        </>
+      )}
     </Shell>
   );
 }

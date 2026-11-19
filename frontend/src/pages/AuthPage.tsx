@@ -18,7 +18,8 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const isSignup = mode === 'signup';
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  // Invite emails link to /signup?email=…, so the invited address is already filled in.
+  const [email, setEmail] = useState(() => new URLSearchParams(location.search).get('email') ?? '');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
@@ -72,7 +73,7 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-7 py-10">
           <div className="flex flex-col gap-2">
             <h1 className="font-wide text-3xl font-extrabold tracking-tight">{isSignup ? 'Create your account' : 'Welcome back'}</h1>
-            <p className="text-muted">{isSignup ? 'Free for teams up to 10. Takes 30 seconds.' : 'Log in to see your boards.'}</p>
+            <p className="text-muted">{isSignup ? 'Free to use. Takes 30 seconds.' : 'Log in to see your boards.'}</p>
           </div>
           {errors.google && (
             <p role="alert" className="rounded-[8px] bg-over px-3 py-2 text-sm text-over-fg">

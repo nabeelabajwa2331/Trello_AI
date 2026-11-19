@@ -2,10 +2,11 @@ import { Router, type Request } from 'express';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from './db.js';
-import { HttpError, forbidden, handle, notFound, parse } from './http.js';
+import { HttpError, appOrigin, forbidden, handle, notFound, parse } from './http.js';
 import { requireUser, publicUser } from './auth.js';
 import { requireRole, type Action } from './permissions.js';
-import { boardSnapshot } from './snapshot.js';
+import { boardSnapshot, forRole } from './snapshot.js';
+import { inviteEmail, sendQuietly } from './mail.js';
 import { addUserToBoardRoom, boardDeleted, broadcastBoard, notifyUser, removeUserFromBoardRoom, type Log } from './realtime.js';
 import { COVERS, TEMPLATES, type TemplateId } from './templates.js';
 
@@ -19,12 +20,11 @@ const roleSchema = z.enum(['admin', 'member', 'viewer']);
 const LABELS = ['research', 'design', 'bug', 'docs', 'urgent', 'backend', 'slides', 'misc'] as const;
 const quote = (s: string) => `“${s}”`;
 
-/** Board snapshot with this viewer's starred flag. */
+/** Board snapshot as this person may see it: their starred flag, and invite details only if they can invite. */
 async function snapshotFor(boardId: string, userId: string) {
   const [snap, me] = await Promise.all([boardSnapshot(boardId), prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } } })]);
   if (!snap || !me) throw notFound('This board');
-  snap.board.starred = me.starred;
-  return snap;
+  return { ...snap, board: { ...forRole(snap.board, me.role), starred: me.starred } };
 }
 
 /**
@@ -244,6 +244,11 @@ api.delete(
       await mutate(req, list.boardId, 'editLists', async () => {
         const n = await prisma.card.count({ where: { listId: list.id, archived: false } });
         if (n) throw new HttpError(409, 'Move or archive the cards in this list first, then delete it.');
+        // Archived cards would be deleted together with the list; move them so they stay in the Archive.
+        const other = await prisma.list.findFirst({ where: { boardId: list.boardId, NOT: { id: list.id } }, orderBy: { position: 'asc' } });
+        const archived = await prisma.card.count({ where: { listId: list.id, archived: true } });
+        if (archived && !other) throw new HttpError(409, "This is the board's last list and it still has archived cards. Add another list first.");
+        if (archived) await prisma.card.updateMany({ where: { listId: list.id, archived: true }, data: { listId: other!.id } });
         await prisma.list.delete({ where: { id: list.id } });
       }, `deleted the list ${quote(list.title)}`),
     );
@@ -412,9 +417,13 @@ api.post(
         const existing = await prisma.user.findUnique({ where: { email: body.email } });
         if (existing && (await prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId: existing.id } } }))) throw new HttpError(409, 'That person is already on the board.');
         if (await prisma.invite.findFirst({ where: { boardId, email: body.email } })) throw new HttpError(409, 'That person already has an invite.');
-        const inv = await prisma.invite.create({ data: { boardId, email: body.email, role: body.role, invitedById: req.userId }, include: { board: true } });
+        const inv = await prisma.invite.create({ data: { boardId, email: body.email, role: body.role, invitedById: req.userId }, include: { board: true, invitedBy: true } });
         // If they already have an account, show the invite on their workspace right away.
         if (existing) notifyUser(existing.id, { type: 'invite', invite: { id: inv.id, fromUserId: req.userId, role: inv.role, boardTitle: inv.board.title, boardCover: inv.board.cover } });
+        // Tell them by email too. People without an account land on signup with their email filled in.
+        const origin = appOrigin(req);
+        const link = existing ? `${origin}/boards` : `${origin}/signup?email=${encodeURIComponent(body.email)}`;
+        await sendQuietly({ to: body.email, ...inviteEmail(inv.invitedBy.name, inv.board.title, inv.role, link, !!existing) });
       }, `invited ${body.email} as ${body.role}`),
     );
   }),
@@ -469,6 +478,8 @@ api.post(
     const me = await prisma.user.findUnique({ where: { id: req.userId } });
     const inv = await prisma.invite.findUnique({ where: { id: req.params.inviteId } });
     if (!inv || !me || inv.email !== me.email) throw notFound('This invite');
+    // Email invites go to an address, so we need proof that this account really owns it.
+    if (!me.emailVerifiedAt) throw forbidden(`Confirm your email first. We sent a link to ${me.email}; you can send it again from the banner at the top.`);
     await joinBoard(req.userId, inv.boardId, inv.role);
     await prisma.invite.delete({ where: { id: inv.id } });
     await broadcastBoard(inv.boardId, null);
@@ -507,7 +518,7 @@ api.delete(
     const { boardId, userId } = req.params;
     const target = await prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } }, include: { user: true } });
     if (!target) throw notFound('That member');
-    if (target.role === 'owner') throw forbidden("The owner can't be removed.");
+    if (target.role === 'owner') throw forbidden(userId === req.userId ? "Owners can't leave their own board. Delete the board instead." : "The owner can't be removed.");
     const leaving = userId === req.userId;
     const snap = await mutate(
       req,

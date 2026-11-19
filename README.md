@@ -71,7 +71,10 @@ React (Vite) ──REST /api──▶ Express ──Prisma──▶ SQLite
      └──── Socket.IO ◀──────────┘  after every change: "board:sync" to everyone on that board
 ```
 
-- **Auth:** email and password, bcrypt hashes, JWT in an httpOnly cookie. The socket uses the same cookie.
+- **Auth:** email and password (bcrypt) or Google. The httpOnly cookie holds a signed token pointing at a row in the `Session` table, so logging out, "Log out on every device" and password resets end sessions immediately. The socket uses the same cookie.
+- **Email confirmation:** signup sends a link. An account must confirm its email before it can accept an email invite, so nobody can claim an invite by signing up with someone else's address. Continuing with Google, or using a reset link, also confirms the email. If an unconfirmed password account is later claimed through Google, its password and sessions are removed.
+- **Rate limits:** 30 sign-in attempts per 15 minutes per network, 6 emails per 15 minutes, and an account locks for 15 minutes after 8 wrong passwords.
+- **Invite links** and pending invite emails are only sent to Owners and Admins.
 - **Every change** goes through one `mutate()` helper on the server (`backend/src/routes.ts`): check role → apply → write the activity log → push the full board to the board's room.
 - **Optimistic UI:** the frontend changes the screen immediately, then replaces it with the server's board. If the server refuses, a toast explains why and the board reloads, so the change rolls back.
 - **Card order** uses fractional positions, so a move rewrites one row. Lists renumber themselves if the gaps get too small.

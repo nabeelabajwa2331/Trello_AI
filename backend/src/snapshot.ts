@@ -1,5 +1,6 @@
 import { prisma } from './db.js';
 import { publicUser } from './auth.js';
+import { can } from './permissions.js';
 
 /**
  * Serialises a board into the exact shape the frontend store uses (frontend/src/types.ts),
@@ -69,6 +70,11 @@ export async function boardSnapshot(boardId: string) {
 }
 
 export type Snapshot = NonNullable<Awaited<ReturnType<typeof boardSnapshot>>>;
+
+/** Members and viewers don't see invite links or who else was invited; only people who can invite do. */
+export function forRole(board: Snapshot['board'], role: string): Snapshot['board'] {
+  return can(role, 'invite') ? board : { ...board, invites: [], inviteLink: null };
+}
 
 function safeJson(s: string): string[] {
   try {

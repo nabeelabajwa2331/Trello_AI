@@ -9,9 +9,23 @@ import type { Server } from 'node:http';
 
 process.env.DATABASE_URL = 'file:./test.db';
 process.env.JWT_SECRET = 'test-secret';
+process.env.NODE_ENV = 'test'; // turns off rate limits so many signups in a row are fine
 
 let server: Server;
 let base = '';
+
+/** Every email the app "sends" during the tests. */
+const mail: { to: string; subject: string; text: string }[] = [];
+const mailsTo = (to: string, subject: RegExp) => mail.filter((m) => m.to === to && subject.test(m.subject));
+const tokenIn = (text: string, path: string) => new RegExp(`${path}\\?token=([\\w-]+)`).exec(text)?.[1] ?? '';
+
+/** Clicks the "confirm your email" link that was mailed to this address. */
+async function verify(email: string) {
+  const m = mailsTo(email, /Confirm your email/).at(-1);
+  assert.ok(m, `a confirmation email was sent to ${email}`);
+  const r = await new Client().post('/auth/verify', { token: tokenIn(m.text, 'verify-email') });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+}
 
 type Res = { status: number; body: any };
 class Client {
@@ -44,6 +58,8 @@ before(async () => {
   // Re-pick the provider first: generated.prisma may still say postgresql after a push to Neon.
   execSync('node scripts/prisma-provider.mjs && npx prisma db push --force-reset --skip-generate', { cwd: new URL('..', import.meta.url), env: process.env, stdio: 'ignore' });
   const { createAppServer } = await import('../src/app.js');
+  const { mailer } = await import('../src/mail.js');
+  mailer.send = async (m) => void mail.push({ to: m.to, subject: m.subject, text: m.text });
   server = createAppServer();
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://localhost:${(server.address() as AddressInfo).port}`;
@@ -79,26 +95,103 @@ describe('auth', () => {
   });
 });
 
-describe('forgot password', () => {
-  const sent: { to: string; text: string }[] = [];
-  before(async () => {
-    const { mailer } = await import('../src/mail.js');
-    mailer.send = async (m) => void sent.push({ to: m.to, text: m.text });
+describe('security', () => {
+  test("an unconfirmed account can't accept an email invite sent to that address", async () => {
+    const owner = await signup('Inviter', 'inviter@example.edu');
+    const b = (await owner.c.post('/boards', { title: 'Private', template: 'blank' })).body.board;
+    await owner.c.post(`/boards/${b.id}/invites`, { email: 'target@example.edu', role: 'member' });
+    const impostor = await signup('Impostor', 'target@example.edu'); // never clicks the email link
+    const inv = (await impostor.c.get('/bootstrap')).body.incoming[0];
+    const r = await impostor.c.post(`/invites/${inv.id}/accept`);
+    assert.equal(r.status, 403);
+    assert.match(r.body.error, /Confirm your email/);
+    assert.equal((await impostor.c.get(`/boards/${b.id}`)).status, 404);
+    // After confirming, the real owner of the inbox can join.
+    await verify('target@example.edu');
+    assert.equal((await impostor.c.post(`/invites/${inv.id}/accept`)).status, 200);
   });
-  const tokenFrom = (text: string) => /reset-password\?token=([\w-]+)/.exec(text)?.[1] ?? '';
+
+  test('confirmation links work once, and signup sends one', async () => {
+    const { c } = await signup('Carla Confirm', 'carla@example.edu');
+    assert.equal((await c.get('/auth/me')).body.user.emailVerified, false);
+    const token = tokenIn(mailsTo('carla@example.edu', /Confirm your email/)[0].text, 'verify-email');
+    assert.equal((await new Client().post('/auth/verify', { token })).status, 200);
+    assert.equal((await c.get('/auth/me')).body.user.emailVerified, true);
+    assert.equal((await new Client().post('/auth/verify', { token })).status, 410);
+  });
+
+  test('a copied cookie stops working once you log out', async () => {
+    const { c } = await signup('Lab Computer', 'lab@example.edu');
+    const copy = new Client();
+    copy.cookie = c.cookie;
+    assert.equal((await copy.get('/auth/me')).status, 200);
+    await c.post('/auth/logout');
+    assert.equal((await copy.get('/auth/me')).status, 401);
+  });
+
+  test('"log out everywhere" and password reset end every other session', async () => {
+    const { c: laptop } = await signup('Many Devices', 'devices@example.edu');
+    const phone = new Client();
+    assert.equal((await phone.post('/auth/login', { email: 'devices@example.edu', password: 'password123' })).status, 200);
+    await laptop.post('/auth/logout-all');
+    assert.equal((await phone.get('/auth/me')).status, 401);
+    assert.equal((await laptop.get('/auth/me')).status, 401);
+
+    const old = new Client();
+    await old.post('/auth/login', { email: 'devices@example.edu', password: 'password123' });
+    await new Client().post('/auth/forgot', { email: 'devices@example.edu' });
+    const token = tokenIn(mailsTo('devices@example.edu', /Reset your/).at(-1)!.text, 'reset-password');
+    const fresh = new Client();
+    assert.equal((await fresh.post('/auth/reset', { token, password: 'fresh-password-9' })).status, 200);
+    assert.equal((await old.get('/auth/me')).status, 401, 'old session ended');
+    assert.equal((await fresh.get('/auth/me')).body.user.emailVerified, true, 'reset proves the email');
+  });
+
+  test('too many wrong passwords lock that account for a while', async () => {
+    await signup('Locked Out', 'locked@example.edu');
+    let last = 0;
+    for (let i = 0; i < 9; i++) last = (await new Client().post('/auth/login', { email: 'locked@example.edu', password: `wrong-${i}` })).status;
+    assert.equal(last, 429);
+    const r = await new Client().post('/auth/login', { email: 'locked@example.edu', password: 'password123' });
+    assert.equal(r.status, 429, 'even the right password waits until the lock ends');
+    assert.match(r.body.error, /Too many wrong passwords/);
+  });
+
+  test('broken JSON gets a 400, not a server error', async () => {
+    const r = await fetch(base + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{oops' });
+    assert.equal(r.status, 400);
+  });
+
+  test("owners can't leave their own board; members can", async () => {
+    const o = await signup('Owner Leaves', 'oleave@example.edu');
+    const b = (await o.c.post('/boards', { title: 'Mine', template: 'blank' })).body.board;
+    const r = await o.c.del(`/boards/${b.id}/members/${o.id}`);
+    assert.equal(r.status, 403);
+    assert.match(r.body.error, /Delete the board instead/);
+    const link = (await o.c.post(`/boards/${b.id}/invite-link`, { role: 'member' })).body.board.inviteLink.token;
+    const m = await signup('Member Leaves', 'mleave@example.edu');
+    await m.c.post(`/join/${link}`);
+    assert.equal((await m.c.del(`/boards/${b.id}/members/${m.id}`)).status, 200);
+    assert.equal((await m.c.get(`/boards/${b.id}`)).status, 404);
+  });
+});
+
+describe('forgot password', () => {
+  const sent = () => mail.filter((m) => /Reset your/.test(m.subject));
+  const tokenFrom = (text: string) => tokenIn(text, 'reset-password');
 
   test("unknown emails get the same answer and no email", async () => {
     const r = await new Client().post('/auth/forgot', { email: 'nobody-here@example.edu' });
     assert.equal(r.status, 200);
-    assert.equal(sent.length, 0);
+    assert.equal(mailsTo('nobody-here@example.edu', /./).length, 0);
   });
 
   test('the emailed link sets a new password once, and logs you in', async () => {
     await signup('Fiona Forgetful', 'fiona@example.edu');
     assert.equal((await new Client().post('/auth/forgot', { email: 'FIONA@example.edu' })).status, 200);
-    assert.equal(sent.length, 1);
-    assert.equal(sent[0].to, 'fiona@example.edu');
-    const token = tokenFrom(sent[0].text);
+    const fiona = mailsTo('fiona@example.edu', /Reset your/);
+    assert.equal(fiona.length, 1);
+    const token = tokenFrom(fiona[0].text);
     assert.ok(token.length > 30, 'email contains a reset link');
 
     const c = new Client();
@@ -112,16 +205,15 @@ describe('forgot password', () => {
   });
 
   test('asking again within a minute does not send a second email', async () => {
-    const before = sent.length;
     await signup('Rita Repeat', 'rita@example.edu');
     await new Client().post('/auth/forgot', { email: 'rita@example.edu' });
     await new Client().post('/auth/forgot', { email: 'rita@example.edu' });
-    assert.equal(sent.length, before + 1);
+    assert.equal(mailsTo('rita@example.edu', /Reset your/).length, 1);
   });
 
   test('made-up tokens and short passwords are rejected', async () => {
     assert.equal((await new Client().post('/auth/reset', { token: 'x'.repeat(43), password: 'long-enough-1' })).status, 410);
-    const t = tokenFrom(sent.at(-1)!.text);
+    const t = tokenFrom(sent().at(-1)!.text);
     assert.equal((await new Client().post('/auth/reset', { token: t, password: 'short' })).status, 400);
   });
 });
@@ -161,13 +253,23 @@ describe('continue with Google', () => {
     assert.equal(again.body.user.id, first.body.user.id);
   });
 
-  test('links to an existing email-and-password account instead of making a second one', async () => {
+  test('links to an existing, confirmed email-and-password account instead of making a second one', async () => {
     const { id } = await signup('Paula Password', 'paula@gmail.com');
+    await verify('paula@gmail.com');
     const r = await new Client().post('/auth/google', { credential: cred({ sub: 'g-2', email: 'paula@gmail.com' }) });
     assert.equal(r.status, 200);
     assert.equal(r.body.user.id, id);
     // The password still works too.
     assert.equal((await new Client().post('/auth/login', { email: 'paula@gmail.com', password: 'password123' })).status, 200);
+  });
+
+  test("someone who pre-registered your Gmail can't keep access once you continue with Google", async () => {
+    const squatter = await signup('Squatter', 'real.person@gmail.com'); // never confirmed the email
+    const r = await new Client().post('/auth/google', { credential: cred({ sub: 'g-real', email: 'real.person@gmail.com' }) });
+    assert.equal(r.status, 200);
+    assert.equal((await squatter.c.get('/auth/me')).status, 401, "squatter's session ended");
+    assert.equal((await new Client().post('/auth/login', { email: 'real.person@gmail.com', password: 'password123' })).status, 401, "squatter's password removed");
+    assert.equal(r.body.user.emailVerified, true);
   });
 
   test("Google-only accounts get a clear message when they try a password", async () => {
@@ -249,6 +351,17 @@ describe('boards, lists and cards', () => {
     assert.equal(back.body.board.lists[lists[0]].cardIds.includes(id), true);
   });
 
+  test('deleting a list keeps its archived cards in the Archive', async () => {
+    const spare = (await owner.c.post(`/boards/${boardId}/lists`, { title: 'Old ideas' })).body.board.listOrder.at(-1);
+    const id = (await owner.c.post(`/lists/${spare}/cards`, { title: 'Shelved idea' })).body.cardId;
+    await owner.c.post(`/cards/${id}/archive`);
+    const r = await owner.c.del(`/lists/${spare}`);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.board.cards[id]?.archived, true, 'archived card still exists');
+    const back = await owner.c.post(`/cards/${id}/restore`);
+    assert.ok(back.body.board.lists[lists[0]].cardIds.includes(id), 'restored into the first list');
+  });
+
   test("a list with cards can't be deleted", async () => {
     assert.equal((await owner.c.del(`/lists/${lists[0]}`)).status, 409);
     const empty = (await owner.c.post(`/boards/${boardId}/lists`, { title: 'Spare' })).body.board.listOrder.at(-1);
@@ -279,6 +392,8 @@ describe('roles and invitations', () => {
     // Viewer: invited by email before they have an account, accepts after signing up.
     await owner.c.post(`/boards/${boardId}/invites`, { email: 'vera@example.edu', role: 'viewer' });
     viewer = await signup('Vera Viewer', 'vera@example.edu');
+    assert.equal(mailsTo('vera@example.edu', /invited you/).length, 1, 'the invite was emailed');
+    await verify('vera@example.edu');
     const boot = await viewer.c.get('/bootstrap');
     assert.equal(boot.body.incoming.length, 1);
     assert.equal((await viewer.c.post(`/invites/${boot.body.incoming[0].id}/accept`)).status, 200);
@@ -289,6 +404,18 @@ describe('roles and invitations', () => {
     assert.equal((await member.c.post(`/join/${link.token}`)).status, 200);
 
     outsider = await signup('Otto Outsider', 'otto@example.edu');
+  });
+
+  test('members and viewers never receive the invite link or pending invite emails', async () => {
+    await owner.c.post(`/boards/${boardId}/invites`, { email: 'pending@example.edu', role: 'member' });
+    const asOwner = (await owner.c.get(`/boards/${boardId}`)).body.board;
+    assert.ok(asOwner.inviteLink?.token, 'owner sees the link');
+    assert.ok(asOwner.invites.length > 0, 'owner sees pending invites');
+    for (const who of [viewer, member]) {
+      const b = (await who.c.get(`/boards/${boardId}`)).body.board;
+      assert.equal(b.inviteLink, null);
+      assert.deepEqual(b.invites, []);
+    }
   });
 
   test('members list shows each role', async () => {

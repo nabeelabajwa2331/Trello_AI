@@ -65,6 +65,9 @@ export default function Workspace() {
                 <Avatar userId={inv.fromUserId} size="md" />
                 <p className="min-w-0 flex-1">
                   <b>{users[inv.fromUserId]?.name}</b> invited you to <b>{inv.boardTitle}</b> as {inv.role}.
+                  {me?.emailVerified === false && (
+                    <span className="mt-0.5 block text-sm text-muted">Confirm your email first (see the yellow banner at the top), then accept.</span>
+                  )}
                 </p>
                 <div className="flex gap-2">
                   <button className="btn-ghost" onClick={() => decline(inv.id)}>

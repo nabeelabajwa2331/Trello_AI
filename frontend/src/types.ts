@@ -9,6 +9,8 @@ export interface User {
   color: string;
   /** Google profile photo, when they signed in with Google */
   avatarUrl?: string | null;
+  /** They clicked the confirmation email (or used Google / a reset link) */
+  emailVerified?: boolean;
 }
 
 export interface Comment {

@@ -6,7 +6,7 @@ import AuthPage from './pages/AuthPage';
 import Workspace from './pages/Workspace';
 import BoardPage from './pages/BoardPage';
 import JoinPage from './pages/JoinPage';
-import { ForgotPasswordPage, ResetPasswordPage } from './pages/PasswordPages';
+import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from './pages/PasswordPages';
 import NotFound from './pages/NotFound';
 import { LogoMark } from './components/ui/Logo';
 import { useStore } from './store/useStore';
@@ -48,6 +48,7 @@ export default function App() {
         <Route path="/signup" element={<GuestOnly><AuthPage mode="signup" /></GuestOnly>} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route element={<RequireAuth />}>
           <Route path="/boards" element={<Workspace />} />
           <Route path="/b/:boardId" element={<BoardPage />} />

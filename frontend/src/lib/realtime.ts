@@ -15,6 +15,8 @@ export interface Handlers {
   onPresence: (boardId: string, userIds: string[]) => void;
   onStatus: (online: boolean) => void;
   onReconnect: () => void;
+  /** The server closed the connection on purpose (logged out everywhere, password reset). */
+  onKicked: () => void;
 }
 
 let socket: Socket | null = null;
@@ -28,8 +30,15 @@ export function connectRealtime(h: Handlers) {
     if (wasConnected) h.onReconnect(); // we may have missed changes while offline
     wasConnected = true;
   });
-  socket.on('disconnect', () => h.onStatus(false));
-  socket.on('connect_error', () => h.onStatus(false));
+  socket.on('disconnect', (reason) => {
+    // "io server disconnect" means the server ended it on purpose; Socket.IO won't retry by itself.
+    if (reason === 'io server disconnect') h.onKicked();
+    else h.onStatus(false);
+  });
+  socket.on('connect_error', (err) => {
+    if (err.message === 'unauthorized') h.onKicked();
+    else h.onStatus(false);
+  });
   socket.on('board:sync', h.onSync);
   socket.on('notification', h.onNotification);
   socket.on('board:removed', ({ boardId }: { boardId: string }) => h.onRemoved(boardId));

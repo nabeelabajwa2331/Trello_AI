@@ -21,6 +21,8 @@ model User {
   googleId     String?  @unique
   avatarUrl    String?
   color        String
+  /// Set once they prove they own the email (verification link, password reset, or Google)
+  emailVerifiedAt DateTime?
   createdAt    DateTime @default(now())
 
   memberships   BoardMember[]
@@ -31,6 +33,34 @@ model User {
   actedOn       Notification[] @relation("actor")
   invitesSent   Invite[]
   resets        PasswordReset[]
+  verifications EmailVerification[]
+  sessions      Session[]
+}
+
+/// One row per logged-in browser. Logging out deletes it, so a copied cookie stops working.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  userAgent String?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// "Verify your email" links. Only a SHA-256 hash of the token is stored.
+model EmailVerification {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /// One-time "forgot password" links. Only a SHA-256 hash of the token is stored.

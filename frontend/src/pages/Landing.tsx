@@ -331,17 +331,17 @@ const WEEKS = [
 ];
 
 const ROLES: { name: string; who: string; can: [boolean, string][] }[] = [
-  { name: 'Owner', who: 'Whoever made the board', can: [[true, 'Everything'], [true, 'Delete the board'], [true, 'Hand ownership to someone else']] },
+  { name: 'Owner', who: 'Whoever made the board', can: [[true, 'Everything'], [true, 'Delete the board'], [true, 'Remove anyone from the board']] },
   { name: 'Admin', who: 'The team lead', can: [[true, 'Edit, move, comment'], [true, 'Invite people, change roles'], [false, 'Delete the board']] },
   { name: 'Member', who: 'Everyone doing the work', can: [[true, 'Edit, move, comment'], [false, 'Invite people'], [false, 'Change roles']] },
   { name: 'Viewer', who: 'Your teacher or mentor', can: [[true, 'See every card and the activity log'], [false, 'Edit or comment'], [false, 'Invite people']] },
 ];
 
 const FAQ: [string, string][] = [
-  ['Is it free?', 'Yes, for teams of up to 10 people, with unlimited boards and cards.'],
+  ['Is it free?', 'Yes. Boards, cards and teammates are free.'],
   ['Can my teacher see our progress?', 'Invite them as a Viewer. They see every card and the activity log, and can’t change anything.'],
   ['Does it work on my phone?', 'Yes. The board scrolls sideways and you drag cards with your finger.'],
   ['What if two of us move the same card?', 'Each change is saved in order and shows up for everyone straight away. If a save fails, the card goes back and you get a message.'],
-  ['Can I undo a mistake?', 'Archived cards can be restored, and the activity log shows every change and who made it.'],
+  ['Can I undo a mistake?', 'Archived cards stay in the board’s Archive, where you can restore them. The activity log shows who moved, added, assigned or archived each card.'],
   ['Do my teammates need an account?', 'Yes, a free one. Send them an invite link and they land on your board after signing up.'],
 ];

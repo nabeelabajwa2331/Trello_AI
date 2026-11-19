@@ -18,7 +18,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Activity, Eye, Filter, Plus, Share2, Star, X } from 'lucide-react';
+import { Activity, Archive, Eye, Filter, LogOut, MoreHorizontal, Plus, Share2, Star, Trash2, X } from 'lucide-react';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { AppHeader } from '../components/AppHeader';
 import { BoardColumn, InlineInput } from '../components/board/BoardColumn';
@@ -28,7 +28,9 @@ import { ActivityPanel } from '../components/board/ActivityPanel';
 import { ShareDialog } from '../components/board/ShareDialog';
 import { AvatarStack } from '../components/ui/Avatar';
 import { LabelChip } from '../components/ui/Chips';
-import { Popover } from '../components/ui/Popover';
+import { Popover, MenuItem } from '../components/ui/Popover';
+import { Dialog } from '../components/ui/Dialog';
+import { ArchivePanel } from '../components/board/ArchivePanel';
 import { useStore, useMyRole } from '../store/useStore';
 import { requestPresence } from '../lib/realtime';
 import { can } from '../lib/permissions';
@@ -57,6 +59,8 @@ export default function BoardPage() {
   const addList = useStore((s) => s.addList);
   const renameBoard = useStore((s) => s.renameBoard);
   const toggleStar = useStore((s) => s.toggleStar);
+  const deleteBoard = useStore((s) => s.deleteBoard);
+  const leaveBoard = useStore((s) => s.leaveBoard);
 
   // While dragging, the board renders from this local snapshot, so remote updates never yank a card out of your hand.
   const [dragLayout, setDragLayout] = useState<Layout | null>(null);
@@ -66,6 +70,8 @@ export default function BoardPage() {
   const [activity, setActivity] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [addingList, setAddingList] = useState(false);
+  const [archive, setArchive] = useState(false);
+  const [confirmExit, setConfirmExit] = useState<'delete' | 'leave' | null>(null);
   const lastDragEnd = useRef(0);
 
   // Filters
@@ -113,6 +119,7 @@ export default function BoardPage() {
   if (!role) return (<><AppHeader /><NotFound message="You don't have access to this board. Ask the owner for an invite." /></>);
 
   const canEdit = can(role, 'editCards');
+  const archivedCount = Object.values(board.cards).filter((c) => c.archived).length;
   const canDrag = canEdit && !filtering; // reordering a filtered view would be confusing
   const layout = dragLayout ?? visible;
   const listOrder = dragLists ?? board.listOrder;
@@ -236,6 +243,34 @@ export default function BoardPage() {
           <button className="btn-primary px-3 py-1.5" onClick={() => setShare(true)}>
             <Share2 size={15} /> Share
           </button>
+          <Popover
+            align="right"
+            className="w-56"
+            trigger={({ toggle }) => (
+              <button className="btn-quiet h-9 w-9 p-0" onClick={toggle} aria-label="Board menu">
+                <MoreHorizontal size={18} />
+              </button>
+            )}
+          >
+            {(close) => (
+              <>
+                <MenuItem onClick={() => { close(); setArchive(true); }}>
+                  <Archive size={15} /> Archived cards
+                  {archivedCount > 0 && <span className="ml-auto font-mono text-xs text-muted">{archivedCount}</span>}
+                </MenuItem>
+                <div className="my-1 border-t border-line" />
+                {role === 'owner' ? (
+                  <MenuItem danger onClick={() => { close(); setConfirmExit('delete'); }}>
+                    <Trash2 size={15} /> Delete board
+                  </MenuItem>
+                ) : (
+                  <MenuItem danger onClick={() => { close(); setConfirmExit('leave'); }}>
+                    <LogOut size={15} /> Leave board
+                  </MenuItem>
+                )}
+              </>
+            )}
+          </Popover>
         </div>
       </div>
 
@@ -293,8 +328,68 @@ export default function BoardPage() {
 
       {cardId && <CardModal board={board} cardId={cardId} role={role} onClose={() => navigate(`/b/${board.id}`)} />}
       {activity && <ActivityPanel board={board} onClose={() => setActivity(false)} />}
+      {archive && <ArchivePanel board={board} canEdit={canEdit} onClose={() => setArchive(false)} />}
+      <ExitDialog
+        mode={confirmExit}
+        boardTitle={board.title}
+        onClose={() => setConfirmExit(null)}
+        onConfirm={async () => {
+          const deleting = confirmExit === 'delete';
+          const ok = deleting ? await deleteBoard(board.id) : await leaveBoard(board.id);
+          if (!ok) return;
+          toast(deleting ? `Deleted “${board.title}”` : `You left “${board.title}”`);
+          navigate('/boards', { replace: true });
+        }}
+      />
       <ShareDialog board={board} myRole={role} open={share} onClose={() => setShare(false)} />
     </div>
+  );
+}
+
+/** Delete asks you to type the board name; leave is a plain confirmation. */
+function ExitDialog({ mode, boardTitle, onClose, onConfirm }: { mode: 'delete' | 'leave' | null; boardTitle: string; onClose: () => void; onConfirm: () => Promise<void> }) {
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (mode) setTyped('');
+  }, [mode]);
+  const deleting = mode === 'delete';
+  const ready = !deleting || typed.trim() === boardTitle.trim();
+  return (
+    <Dialog open={!!mode} onClose={onClose} title={deleting ? 'Delete this board?' : 'Leave this board?'}>
+      <form
+        className="flex flex-col gap-4 p-5"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!ready || busy) return;
+          setBusy(true);
+          await onConfirm();
+          setBusy(false);
+        }}
+      >
+        {deleting ? (
+          <>
+            <p>
+              This permanently deletes <b>“{boardTitle}”</b> with all its lists, cards, comments and activity, for everyone on it. It can’t be undone.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="confirm-board-name" className="text-sm font-semibold">Type the board name to confirm</label>
+              <input id="confirm-board-name" data-autofocus className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={boardTitle} autoComplete="off" />
+            </div>
+          </>
+        ) : (
+          <p>
+            You’ll lose access to <b>“{boardTitle}”</b> and be removed from its cards. Someone who can invite people will have to add you again if you want back in.
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-danger" disabled={!ready || busy}>
+            {busy ? 'One moment…' : deleting ? 'Delete board' : 'Leave board'}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

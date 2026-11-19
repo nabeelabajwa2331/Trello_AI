@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { toast } from 'sonner';
 import type { Board, Card, IncomingInvite, Notification, Role, TemplateId, User } from '../types';
-import { api, ApiError, errorMessage } from '../lib/api';
+import { api, ApiError, errorMessage, setSessionEndedHandler } from '../lib/api';
 import { connectRealtime, disconnectRealtime } from '../lib/realtime';
 import { firstName, uid } from '../lib/id';
 
@@ -28,6 +28,12 @@ interface State {
   signup: (name: string, email: string, password: string) => Promise<void>;
   loginWithGoogle: (accessToken: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
+  logoutEverywhere: () => Promise<void>;
+  resendVerification: () => Promise<void>;
+  confirmEmail: (token: string) => Promise<void>;
+  /** The server said our session is gone: clear everything and send them to log in. */
+  sessionEnded: () => void;
+  leaveBoard: (boardId: string) => Promise<boolean>;
   logout: () => Promise<void>;
   bootstrap: () => Promise<void>;
   applySnapshot: (snap: Snap, keepStar?: boolean) => void;
@@ -88,11 +94,15 @@ export const useStore = create<State>()(
         get().applySnapshot(snap);
         return snap;
       } catch (e) {
+        if (e instanceof ApiError && e.status === 401) return null; // sessionEnded() is already handling it
         toast.error(errorMessage(e));
         await get().refreshBoard(boardId);
         return null;
       }
     };
+
+    /** Boards we are leaving or deleting ourselves, so "you no longer have access" isn't shown for them. */
+    const exiting = new Set<string>();
 
     const startRealtime = () =>
       connectRealtime({
@@ -120,12 +130,16 @@ export const useStore = create<State>()(
             delete s.boards[boardId];
             s.boardOrder = s.boardOrder.filter((id) => id !== boardId);
           });
-          if (title) toast(`You no longer have access to “${title}”.`);
+          if (title && !exiting.delete(boardId)) toast(`You no longer have access to “${title}”.`);
         },
         onPresence: (boardId, ids) => set((s) => void (s.presence[boardId] = ids)),
         onStatus: (online) => set((s) => void (s.online = online)),
         onReconnect: () => void get().bootstrap(),
+        // The server closed our connection: usually "log out everywhere" or a password reset elsewhere.
+        onKicked: () => void api('/auth/me').catch((e) => e instanceof ApiError && e.status === 401 && get().sessionEnded()),
       });
+
+    setSessionEndedHandler(() => get().sessionEnded());
 
     return {
       status: 'loading',
@@ -147,6 +161,37 @@ export const useStore = create<State>()(
         } catch {
           set((s) => void (s.status = 'guest'));
         }
+      },
+      sessionEnded: () => {
+        if (get().status !== 'ready') return;
+        disconnectRealtime();
+        set((s) => Object.assign(s, { status: 'guest', me: '', users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {}, online: true }));
+        toast('Your session ended. Log in again to continue.');
+      },
+      logoutEverywhere: async () => {
+        try {
+          await api('/auth/logout-all', 'POST');
+        } catch (e) {
+          if (!(e instanceof ApiError && e.status === 401)) return void toast.error(errorMessage(e));
+        }
+        disconnectRealtime();
+        set((s) => Object.assign(s, { status: 'guest', me: '', users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
+        toast('Logged out on every device.');
+      },
+      resendVerification: async () => {
+        try {
+          const r = await api<{ alreadyVerified?: boolean }>('/auth/verify/resend', 'POST');
+          if (r.alreadyVerified) {
+            set((s) => void (s.users[s.me] && (s.users[s.me].emailVerified = true)));
+            toast('Your email is already confirmed.');
+          } else toast(`Sent. Check ${get().users[get().me]?.email} (and the spam folder).`);
+        } catch (e) {
+          toast.error(errorMessage(e));
+        }
+      },
+      confirmEmail: async (token) => {
+        const { user } = await api<{ user: User }>('/auth/verify', 'POST', { token });
+        set((s) => void (s.users[user.id] && (s.users[user.id].emailVerified = true)));
       },
       login: async (email, password) => {
         await api('/auth/login', 'POST', { email, password });
@@ -226,6 +271,7 @@ export const useStore = create<State>()(
         });
       },
       deleteBoard: async (boardId) => {
+        exiting.add(boardId);
         try {
           await api(`/boards/${boardId}`, 'DELETE');
           set((s) => {
@@ -234,6 +280,22 @@ export const useStore = create<State>()(
           });
           return true;
         } catch (e) {
+          exiting.delete(boardId);
+          toast.error(errorMessage(e));
+          return false;
+        }
+      },
+      leaveBoard: async (boardId) => {
+        exiting.add(boardId);
+        try {
+          await api(`/boards/${boardId}/members/${get().me}`, 'DELETE');
+          set((s) => {
+            delete s.boards[boardId];
+            s.boardOrder = s.boardOrder.filter((id) => id !== boardId);
+          });
+          return true;
+        } catch (e) {
+          exiting.delete(boardId);
           toast.error(errorMessage(e));
           return false;
         }
