@@ -59,7 +59,10 @@ const isSiteAdminAccount = (email: string) => !!env.siteAdmin.email && email.toL
 export const isAdmin = (u: { email: string; emailVerifiedAt?: Date | null; suspendedAt?: Date | null }) =>
   !!u.emailVerifiedAt && !u.suspendedAt && (env.adminEmails.has(u.email.toLowerCase()) || isSiteAdminAccount(u.email));
 
-/** Creates or updates the built-in admin on every start, from SITE_ADMIN_EMAIL / SITE_ADMIN_PASSWORD. */
+/**
+ * Built-in admin on every start. SITE_ADMIN_PASSWORD is the starting password; after that the admin changes it in the app.
+ * Setting a NEW value on the host resets it (the way back in if it's forgotten).
+ */
 export async function ensureSiteAdmin() {
   const { email, password, name } = env.siteAdmin;
   if (!email) return;
@@ -71,27 +74,38 @@ export async function ensureSiteAdmin() {
     console.error('SITE_ADMIN_PASSWORD must be at least 12 characters. The site admin account was not set up.');
     return;
   }
+  // Fingerprint of the host value we last applied, so a restart doesn't undo a password changed in the app.
+  const fingerprint = crypto.createHash('sha256').update(`${email}\n${password}`).digest('hex');
+  const applied = await prisma.appSetting.findUnique({ where: { key: 'siteAdminSeed' } });
+  const hostValueChanged = applied?.value !== fingerprint;
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (!existing) {
     await prisma.user.create({
       data: { email, name, passwordHash: await bcrypt.hash(password, 10), color: '#2A2926', emailVerifiedAt: new Date() },
     });
     console.log(`Site admin account created: ${email}`);
-    return;
+  } else {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        passwordHash: hostValueChanged ? await bcrypt.hash(password, 10) : undefined,
+        emailVerifiedAt: existing.emailVerifiedAt ?? new Date(),
+        googleId: null, // password-only: never linked to whoever owns that address at Google
+        suspendedAt: null,
+      },
+    });
+    if (hostValueChanged) {
+      await endAllSessions(existing.id);
+      console.log(`Site admin password reset from SITE_ADMIN_PASSWORD for ${email}; old sessions ended.`);
+    }
   }
-  const same = !!existing.passwordHash && (await bcrypt.compare(password, existing.passwordHash));
-  await prisma.user.update({
-    where: { id: existing.id },
-    data: {
-      passwordHash: same ? undefined : await bcrypt.hash(password, 10),
-      emailVerifiedAt: existing.emailVerifiedAt ?? new Date(),
-      googleId: null, // password-only: never linked to whoever owns that address at Google
-      suspendedAt: null,
-    },
-  });
-  if (!same) {
-    await endAllSessions(existing.id);
-    console.log(`Site admin password updated for ${email}; old sessions ended.`);
+  if (hostValueChanged) {
+    await prisma.appSetting.upsert({
+      where: { key: 'siteAdminSeed' },
+      create: { key: 'siteAdminSeed', value: fingerprint },
+      update: { value: fingerprint },
+    });
   }
 }
 
@@ -381,7 +395,7 @@ authRouter.post(
   handle(async (req, res) => {
     const body = parse(z.object({ email }), req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
-    // The built-in admin's password lives on the host (SITE_ADMIN_PASSWORD), so no reset email goes out for it.
+    // No reset email for the built-in admin: whoever owns that inbox mustn't be able to take it over.
     if (user && !isSiteAdminAccount(user.email)) {
       const recent = await prisma.passwordReset.findFirst({ where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 60_000) } } });
       if (!recent) {
@@ -553,8 +567,6 @@ authRouter.post(
     const body = parse(z.object({ currentPassword: z.string().max(200).optional(), newPassword: password }), req.body);
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) throw new HttpError(401, 'Your session ended. Log in again.');
-    if (isSiteAdminAccount(user.email))
-      throw new HttpError(403, "This admin's password is set on the server (SITE_ADMIN_PASSWORD). Change it there.");
     if (user.passwordHash) {
       if (!body.currentPassword || !(await bcrypt.compare(body.currentPassword, user.passwordHash))) {
         throw new HttpError(400, 'Your current password is not right.');

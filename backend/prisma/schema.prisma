@@ -40,6 +40,12 @@ model User {
   photo         Avatar?
 }
 
+/// Small key/value settings, e.g. a hash of the last SITE_ADMIN_PASSWORD applied.
+model AppSetting {
+  key   String @id
+  value String
+}
+
 /// Uploaded profile photo, stored in the database because the free host's disk is wiped on restart.
 model Avatar {
   userId    String   @id

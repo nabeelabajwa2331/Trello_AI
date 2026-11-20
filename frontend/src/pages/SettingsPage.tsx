@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Eye, EyeOff, KeyRound, MonitorX, ShieldCheck, UserRound } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, MonitorX, UserRound } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { AppHeader } from '../components/AppHeader';
 import { AvatarUploader, RemovePhotoButton } from '../components/AvatarUploader';
@@ -59,17 +59,7 @@ export default function SettingsPage() {
             </Section>
 
             <Section icon={KeyRound} title={account.hasPassword ? 'Change password' : 'Set a password'}>
-              {account.builtInAdmin ? (
-                <p className="flex items-start gap-2 rounded-[8px] bg-column px-3 py-2.5 text-sm">
-                  <ShieldCheck size={16} className="mt-0.5 shrink-0" />
-                  <span>
-                    This is the built-in admin account. Its password is set on the server as{' '}
-                    <code className="font-mono text-xs">SITE_ADMIN_PASSWORD</code> (Render → Environment), so change it there.
-                  </span>
-                </p>
-              ) : (
-                <PasswordForm hasPassword={account.hasPassword} onSaved={load} />
-              )}
+              <PasswordForm hasPassword={account.hasPassword} onSaved={load} />
             </Section>
 
             <Section icon={MonitorX} title="Where you’re logged in">

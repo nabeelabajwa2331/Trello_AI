@@ -371,12 +371,21 @@ describe('profile & settings', () => {
     assert.equal((await new Client().post('/auth/login', { email: 'set.pw@gmail.com', password: 'first-password-1' })).status, 200);
   });
 
-  test("the built-in admin's password can only be changed on the server", async () => {
+  test('the built-in admin changes its password in the app, and a restart keeps it', async () => {
     const c = new Client();
     await c.post('/auth/login', { email: 'admin@gmail.com', password: 'rotated-admin-pass-22' });
     assert.equal((await c.get('/auth/account')).body.builtInAdmin, true);
-    const r = await c.post('/auth/password', { currentPassword: 'rotated-admin-pass-22', newPassword: 'something-else-1' });
-    assert.equal(r.status, 403);
+    const r = await c.post('/auth/password', { currentPassword: 'rotated-admin-pass-22', newPassword: 'changed-in-app-33' });
+    assert.equal(r.status, 200);
+
+    // Server restarts with the same SITE_ADMIN_PASSWORD: the password changed in the app stays.
+    const { ensureSiteAdmin } = await import('../src/auth.js');
+    await ensureSiteAdmin();
+    assert.equal((await new Client().post('/auth/login', { email: 'admin@gmail.com', password: 'changed-in-app-33' })).status, 200);
+    assert.equal((await new Client().post('/auth/login', { email: 'admin@gmail.com', password: 'rotated-admin-pass-22' })).status, 401);
+
+    // Put it back for the next tests.
+    await c.post('/auth/password', { currentPassword: 'changed-in-app-33', newPassword: 'rotated-admin-pass-22' });
   });
 
   test('an admin can set a new password for someone who forgot theirs', async () => {
