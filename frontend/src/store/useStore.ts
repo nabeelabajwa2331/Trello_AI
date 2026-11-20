@@ -18,6 +18,8 @@ interface State {
   adminPending: boolean;
   /** REQUIRE_EMAIL_CONFIRMATION is on: show the confirm-your-email banner. */
   confirmRequired: boolean;
+  /** Which welcome to show right after logging in: a high five, or the boss for admins. */
+  welcome: 'new' | 'back' | 'admin' | null;
   users: Record<string, User>;
   boards: Record<string, Board>;
   boardOrder: string[];
@@ -35,6 +37,7 @@ interface State {
   loginWithGoogle: (accessToken: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
   logoutEverywhere: () => Promise<void>;
+  dismissWelcome: () => void;
   resendVerification: () => Promise<void>;
   confirmEmail: (token: string) => Promise<void>;
   /** The server said our session is gone: clear everything and send them to log in. */
@@ -107,6 +110,9 @@ export const useStore = create<State>()(
       }
     };
 
+    /** The welcome screen after a real login or signup (never on a page reload). */
+    const greet = (isNew: boolean) => set((s) => void (s.welcome = s.isAdmin ? 'admin' : isNew ? 'new' : 'back'));
+
     /** Boards we are leaving or deleting ourselves, so "you no longer have access" isn't shown for them. */
     const exiting = new Set<string>();
 
@@ -153,6 +159,7 @@ export const useStore = create<State>()(
       isAdmin: false,
       adminPending: false,
       confirmRequired: false,
+      welcome: null,
       users: {},
       boards: {},
       boardOrder: [],
@@ -219,22 +226,27 @@ export const useStore = create<State>()(
         await api('/auth/login', 'POST', { email, password });
         await get().bootstrap();
         startRealtime();
+        greet(false);
       },
       signup: async (name, email, password) => {
         await api('/auth/signup', 'POST', { name, email, password });
         await get().bootstrap();
         startRealtime();
+        greet(true);
       },
       loginWithGoogle: async (accessToken) => {
-        await api('/auth/google', 'POST', { accessToken });
+        const r = await api<{ created?: boolean }>('/auth/google', 'POST', { accessToken });
         await get().bootstrap();
         startRealtime();
+        greet(!!r.created);
       },
       resetPassword: async (token, password) => {
         await api('/auth/reset', 'POST', { token, password }); // also logs you in
         await get().bootstrap();
         startRealtime();
+        greet(false);
       },
+      dismissWelcome: () => set((s) => void (s.welcome = null)),
       logout: async () => {
         disconnectRealtime();
         window.google?.accounts.id.disableAutoSelect();

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
-import { Ban, Check, ChevronLeft, ChevronRight, Mail, MoreHorizontal, Search, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react';
+import { Ban, Check, ChevronLeft, ChevronRight, KeyRound, Mail, Minus, MoreHorizontal, Search, ShieldCheck, Trash2, UserCheck, X } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { Dialog } from '../components/ui/Dialog';
 import { Popover, MenuItem } from '../components/ui/Popover';
@@ -25,7 +25,7 @@ type Overview = {
   cards: number;
   comments: number;
   signups: { date: string; count: number }[];
-  system: { email: boolean; emailProvider: 'brevo' | 'smtp' | 'none'; google: boolean; appUrl: string | null; admins: string[] };
+  system: { email: boolean; emailProvider: 'brevo' | 'smtp' | 'none'; google: boolean; appUrl: string | null; appUrlSource: 'APP_URL' | 'Render' | null; admins: string[] };
 };
 type AdminUser = {
   id: string;
@@ -129,11 +129,12 @@ function OverviewTab() {
           <ul className="flex flex-col gap-2 text-sm">
             <SystemRow
               ok={data.system.email}
-              label={data.system.emailProvider === 'brevo' ? 'Email sending (Brevo)' : data.system.emailProvider === 'smtp' ? 'Email sending (SMTP)' : 'Email sending'}
-              fix="Set SMTP_HOST, SMTP_USER, SMTP_PASS (or BREVO_API_KEY) on Render. Until then, links only appear in the server log."
+              optional
+              label={data.system.emailProvider === 'brevo' ? 'Email sending (Brevo)' : data.system.emailProvider === 'smtp' ? 'Email sending (SMTP)' : 'Email sending: off (optional)'}
+              fix="Not needed for now. Forgotten passwords are reset from Users → Set a new password. Turn email on later with the SMTP settings on Render if you need it."
             />
             <SystemRow ok={data.system.google} label="Google sign-in" fix="Set GOOGLE_CLIENT_ID on Render." />
-            <SystemRow ok={!!data.system.appUrl} label={data.system.appUrl ? `Site address: ${data.system.appUrl}` : 'Site address (APP_URL)'} fix="Set APP_URL so links in emails always point to the live site." />
+            <SystemRow ok={!!data.system.appUrl} label={data.system.appUrl ? `Site address: ${data.system.appUrl}${data.system.appUrlSource === 'Render' ? ' (detected from Render)' : ''}` : 'Site address (APP_URL)'} fix="Set APP_URL so links in emails always point to the live site." />
           </ul>
           <p className="text-xs text-muted">Admins: {data.system.admins.join(', ')}</p>
           {data.system.email && <EmailTest />}
@@ -224,15 +225,16 @@ function Bar({ label, value, total, pct }: { label: string; value: number; total
   );
 }
 
-function SystemRow({ ok, label, fix }: { ok: boolean; label: string; fix: string }) {
+/** A setup line. `optional` items that are off show as a calm gray dash, not a warning. */
+function SystemRow({ ok, label, fix, optional }: { ok: boolean; label: string; fix: string; optional?: boolean }) {
   return (
     <li className="flex items-start gap-2">
-      <span className={clsx('mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full', ok ? 'bg-done text-done-fg' : 'bg-soon text-soon-fg')}>
-        {ok ? <Check size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
+      <span className={clsx('mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full', ok ? 'bg-done text-done-fg' : optional ? 'bg-column text-muted' : 'bg-soon text-soon-fg')}>
+        {ok ? <Check size={12} strokeWidth={3} /> : optional ? <Minus size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
       </span>
       <span>
         <span className="font-medium">{label}</span>
-        <span className="sr-only">{ok ? ': set up' : ': not set up'}</span>
+        <span className="sr-only">{ok ? ': set up' : optional ? ': off' : ': not set up'}</span>
         {!ok && <span className="block text-xs text-muted">{fix}</span>}
       </span>
     </li>
@@ -327,6 +329,7 @@ function UsersTab() {
   const confirm = data?.emailConfirmation ?? false;
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
+  const [resetting, setResetting] = useState<AdminUser | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 300);
@@ -421,7 +424,7 @@ function UsersTab() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted">{u.lastActive ? ago(u.lastActive) : 'never'}</td>
                     <td className="px-2 py-3 text-right">
-                      <UserActions u={u} act={act} onDelete={() => setDeleting(u)} confirm={confirm} />
+                      <UserActions u={u} act={act} onDelete={() => setDeleting(u)} onSetPassword={() => setResetting(u)} confirm={confirm} />
                     </td>
                   </tr>
                 ))}
@@ -448,7 +451,7 @@ function UsersTab() {
                     </div>
                     <div className="truncate text-xs text-muted">{u.email}</div>
                   </div>
-                  <UserActions u={u} act={act} onDelete={() => setDeleting(u)} confirm={confirm} />
+                  <UserActions u={u} act={act} onDelete={() => setDeleting(u)} onSetPassword={() => setResetting(u)} confirm={confirm} />
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {confirm && (u.emailVerified ? <Badge tone="done">Confirmed</Badge> : <Badge tone="soon">Not confirmed</Badge>)}
@@ -467,6 +470,7 @@ function UsersTab() {
         </>
       )}
 
+      <SetPasswordDialog user={resetting} onClose={() => setResetting(null)} />
       <DeleteUserDialog
         user={deleting}
         onClose={() => setDeleting(null)}
@@ -480,7 +484,7 @@ function UsersTab() {
   );
 }
 
-function UserActions({ u, act, onDelete, confirm }: { u: AdminUser; act: (fn: () => Promise<unknown>, done: string) => Promise<void>; onDelete: () => void; confirm: boolean }) {
+function UserActions({ u, act, onDelete, onSetPassword, confirm }: { u: AdminUser; act: (fn: () => Promise<unknown>, done: string) => Promise<void>; onDelete: () => void; onSetPassword: () => void; confirm: boolean }) {
   if (u.isAdmin) return null;
   return (
     <Popover
@@ -508,6 +512,9 @@ function UserActions({ u, act, onDelete, confirm }: { u: AdminUser; act: (fn: ()
               <Ban size={15} /> Suspend (blocks login)
             </MenuItem>
           )}
+          <MenuItem onClick={() => { close(); onSetPassword(); }}>
+            <KeyRound size={15} /> Set a new password…
+          </MenuItem>
           <div className="my-1 border-t border-line" />
           <MenuItem danger onClick={() => { close(); onDelete(); }}>
             <Trash2 size={15} /> Delete account…
@@ -515,6 +522,52 @@ function UserActions({ u, act, onDelete, confirm }: { u: AdminUser; act: (fn: ()
         </>
       )}
     </Popover>
+  );
+}
+
+/** For someone who forgot their password while email is off. Tell them the new one yourself. */
+function SetPasswordDialog({ user, onClose }: { user: AdminUser | null; onClose: () => void }) {
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    setPassword('');
+    setError('');
+  }, [user]);
+  if (!user) return null;
+  return (
+    <Dialog open onClose={onClose} title={`New password for ${user.name}`}>
+      <form
+        className="flex flex-col gap-4 p-5"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (password.length < 8) return setError('Use at least 8 characters.');
+          setBusy(true);
+          try {
+            await api(`/admin/users/${user.id}/password`, 'POST', { password });
+            toast(`New password set for ${user.name}. They’ve been logged out everywhere.`);
+            onClose();
+          } catch (err) {
+            setError(errorMessage(err));
+          }
+          setBusy(false);
+        }}
+      >
+        <p className="text-sm text-muted">
+          Use this when someone forgot their password. Give them the new one in person or by message, and ask them to change it in{' '}
+          <b className="text-ink">Profile & settings</b> after logging in.
+        </p>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="admin-new-password" className="text-sm font-semibold">New password for {user.email}</label>
+          <input id="admin-new-password" data-autofocus type="text" className="input font-mono" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" />
+          {error && <p className="text-xs font-medium text-danger">{error}</p>}
+        </div>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={busy}>{busy ? 'Saving…' : 'Set password'}</button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

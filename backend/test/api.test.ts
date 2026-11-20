@@ -327,6 +327,60 @@ describe('built-in site admin (SITE_ADMIN_EMAIL / SITE_ADMIN_PASSWORD)', () => {
   });
 });
 
+describe('profile & settings', () => {
+  test('change your name', async () => {
+    const { c } = await signup('Nam E', 'name.change@example.edu');
+    const r = await c.req('PATCH', '/auth/account', { name: 'Name Changed' });
+    assert.equal(r.status, 200);
+    assert.equal((await c.get('/auth/me')).body.user.name, 'Name Changed');
+    assert.equal((await c.req('PATCH', '/auth/account', { name: 'x' })).status, 400);
+  });
+
+  test('change your password: needs the current one, keeps this device, logs out the others', async () => {
+    const { c: laptop } = await signup('Pass Changer', 'pass.change@example.edu');
+    const phone = new Client();
+    await phone.post('/auth/login', { email: 'pass.change@example.edu', password: 'password123' });
+
+    const wrong = await laptop.post('/auth/password', { currentPassword: 'not-it-123', newPassword: 'new-password-9' });
+    assert.equal(wrong.status, 400);
+    assert.match(wrong.body.error, /current password/);
+
+    const ok = await laptop.post('/auth/password', { currentPassword: 'password123', newPassword: 'new-password-9' });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.loggedOutElsewhere, 1);
+    assert.equal((await laptop.get('/auth/me')).status, 200, 'this device stays logged in');
+    assert.equal((await phone.get('/auth/me')).status, 401, 'other device logged out');
+    assert.equal((await new Client().post('/auth/login', { email: 'pass.change@example.edu', password: 'new-password-9' })).status, 200);
+  });
+
+  test('Google-only accounts can set a first password', async () => {
+    const { google } = await import('../src/auth.js');
+    google.verify = async (credential: string) => JSON.parse(credential);
+    const c = new Client();
+    await c.post('/auth/google', { credential: JSON.stringify({ sub: 'g-setpw', email: 'set.pw@gmail.com', name: 'Set Pw' }) });
+    assert.equal((await c.get('/auth/account')).body.hasPassword, false);
+    assert.equal((await c.post('/auth/password', { newPassword: 'first-password-1' })).status, 200);
+    assert.equal((await new Client().post('/auth/login', { email: 'set.pw@gmail.com', password: 'first-password-1' })).status, 200);
+  });
+
+  test("the built-in admin's password can only be changed on the server", async () => {
+    const c = new Client();
+    await c.post('/auth/login', { email: 'admin@gmail.com', password: 'rotated-admin-pass-22' });
+    assert.equal((await c.get('/auth/account')).body.builtInAdmin, true);
+    const r = await c.post('/auth/password', { currentPassword: 'rotated-admin-pass-22', newPassword: 'something-else-1' });
+    assert.equal(r.status, 403);
+  });
+
+  test('an admin can set a new password for someone who forgot theirs', async () => {
+    const forgetful = await signup('Forgetful Fred', 'fred@example.edu');
+    const a = new Client();
+    await a.post('/auth/login', { email: 'admin@gmail.com', password: 'rotated-admin-pass-22' });
+    assert.equal((await a.post(`/admin/users/${forgetful.id}/password`, { password: 'temporary-pass-1' })).status, 200);
+    assert.equal((await forgetful.c.get('/auth/me')).status, 401, 'old sessions ended');
+    assert.equal((await new Client().post('/auth/login', { email: 'fred@example.edu', password: 'temporary-pass-1' })).status, 200);
+  });
+});
+
 describe('forgot password', () => {
   const sent = () => mail.filter((m) => /Reset your/.test(m.subject));
   const tokenFrom = (text: string) => tokenIn(text, 'reset-password');

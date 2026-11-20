@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Eye, EyeOff, MailCheck } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, KeyRound, MailCheck } from 'lucide-react';
 import { Logo } from '../components/ui/Logo';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useStore } from '../store/useStore';
@@ -31,6 +31,37 @@ export function ForgotPasswordPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [sentTo, setSentTo] = useState('');
+  // Is email sending switched on? If not, a reset link can't arrive, so say how to get back in instead.
+  const [emailOn, setEmailOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    api<{ emailEnabled?: boolean }>('/auth/config')
+      .then((c) => setEmailOn(!!c.emailEnabled))
+      .catch(() => setEmailOn(true));
+  }, []);
+
+  if (emailOn === false) {
+    return (
+      <Shell>
+        <span className="grid h-12 w-12 place-items-center rounded-full border border-ink bg-accent text-on-accent">
+          <KeyRound size={22} />
+        </span>
+        <div className="flex flex-col gap-2">
+          <h1 className="font-wide text-3xl font-extrabold tracking-tight">Forgot your password?</h1>
+          <p className="text-muted">
+            This site doesn’t send emails yet, so a reset link can’t reach you. <b className="text-ink">Ask your admin</b> to set a new password for you from the
+            admin panel.
+          </p>
+          <p className="text-muted">
+            Then log in with it and choose your own in <b className="text-ink">Profile & settings → Change password</b>.
+          </p>
+          <p className="text-sm text-muted">If you signed up with Google, just use “Continue with Google”; you don’t need a password.</p>
+        </div>
+        <Link to="/login" className="btn-cta self-start">
+          Back to log in
+        </Link>
+      </Shell>
+    );
+  }
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();

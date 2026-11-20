@@ -96,6 +96,32 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ---------- Welcome screen characters (WelcomeSplash.tsx) ---------- */
+.cb-bob { animation: cb-bob 1.6s ease-in-out 0.9s infinite; }
+.cb-hi5-you { animation: cb-you-in 0.9s cubic-bezier(.2,.9,.3,1.2) both; }
+.cb-hi5-arm { transform-box: fill-box; transform-origin: 0% 100%; animation: cb-arm-tap 0.9s ease-out both; }
+.cb-burst { transform-box: fill-box; transform-origin: 50% 70%; animation: cb-burst 0.9s ease-out 0.35s both; }
+.cb-wave-arm { transform-box: fill-box; transform-origin: 0% 100%; animation: cb-wave 0.7s ease-in-out 0.2s 4 both; }
+
+@keyframes cb-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes cb-you-in {
+  0% { transform: translateX(90px) rotate(12deg); opacity: 0; }
+  50% { transform: translateX(-3px) rotate(-2deg); opacity: 1; }
+  70% { transform: translateX(2px); }
+  100% { transform: translateX(0); opacity: 1; }
+}
+@keyframes cb-arm-tap { 0%, 40% { transform: rotate(0); } 52% { transform: rotate(9deg); } 75%, 100% { transform: rotate(0); } }
+@keyframes cb-burst {
+  0% { opacity: 0; transform: scale(0.4); }
+  30% { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 0.9; transform: scale(1); }
+}
+@keyframes cb-wave { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-20deg); } 70% { transform: rotate(14deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-bob, .cb-hi5-you, .cb-hi5-arm, .cb-burst, .cb-wave-arm { animation: none !important; opacity: 1; transform: none; }
+}
+
 /* Thin horizontal scrollbar for the board canvas */
 .board-scroll { scrollbar-width: thin; scrollbar-color: rgb(var(--line)) transparent; }
 .board-scroll::-webkit-scrollbar { height: 10px; }

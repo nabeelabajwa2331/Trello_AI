@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, LayoutGrid, LogOut, MailWarning, MonitorX, ShieldCheck, WifiOff } from 'lucide-react';
+import { Bell, LayoutGrid, LogOut, MailWarning, MonitorX, Settings, ShieldCheck, WifiOff } from 'lucide-react';
 import clsx from 'clsx';
 import { Logo } from './ui/Logo';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -158,6 +158,9 @@ function UserMenu() {
             <div className="truncate text-xs text-muted">{me?.email}</div>
           </div>
           <div className="my-1 border-t border-line" />
+          <MenuItem onClick={() => navigate('/settings')}>
+            <Settings size={15} /> Profile & settings
+          </MenuItem>
           {isAdmin && (
             <>
               <MenuItem onClick={() => navigate('/admin')}>

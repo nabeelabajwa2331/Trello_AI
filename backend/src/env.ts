@@ -19,9 +19,11 @@ export const env = {
    * Created/updated on every start. Google sign-in and "forgot password" are disabled for it.
    */
   siteAdmin: {
-    email: (process.env.SITE_ADMIN_EMAIL ?? '').trim().toLowerCase(),
+    // Built in so there is always one admin to log in with (and share with a mentor).
+    // Only the password comes from the host: SITE_ADMIN_PASSWORD. No password set = no admin created.
+    email: (process.env.SITE_ADMIN_EMAIL || 'admin@crewboard.app').trim().toLowerCase(),
     password: process.env.SITE_ADMIN_PASSWORD ?? '',
-    name: (process.env.SITE_ADMIN_NAME ?? 'Site Admin').trim() || 'Site Admin',
+    name: (process.env.SITE_ADMIN_NAME ?? 'Admin').trim() || 'Admin',
   },
   /** Brevo (brevo.com) API key: sends email over HTTPS. Use it if your host blocks SMTP. Takes priority over SMTP. */
   brevoKey: (process.env.BREVO_API_KEY ?? '').trim(),
@@ -31,7 +33,9 @@ export const env = {
    */
   requireEmailConfirmation: (process.env.REQUIRE_EMAIL_CONFIRMATION ?? '').trim().toLowerCase() === 'true',
   /** Public address of the site, used in emailed links. Falls back to the request's own address. */
-  appUrl: (process.env.APP_URL ?? '').replace(/\/$/, ''),
+  // Falls back to RENDER_EXTERNAL_URL, which Render sets automatically to the service's public address.
+  appUrl: (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, ''),
+  appUrlSource: process.env.APP_URL ? 'APP_URL' : process.env.RENDER_EXTERNAL_URL ? 'Render' : null,
   /** Outgoing email (password resets). Empty SMTP_HOST = links are printed to the server log instead. */
   smtp: {
     host: process.env.SMTP_HOST ?? '',

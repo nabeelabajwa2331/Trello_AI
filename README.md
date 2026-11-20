@@ -32,9 +32,11 @@ Every push to `main` redeploys automatically. The free plan sleeps after 15 minu
 
 `/admin` is for whoever runs the site (not board owners). It shows totals, a 14-day signups chart, setup status (email, Google, site address), a searchable user list, and a board list with counts only. Admins can resend confirmation emails, suspend accounts (blocks login and ends sessions) and delete accounts. A deleted user's boards go to the next person on them; boards with nobody else are deleted.
 
-**Built-in admin (no personal Gmail):** set `SITE_ADMIN_EMAIL` (any address, e.g. `admin@crewboard.invalid`) and `SITE_ADMIN_PASSWORD` (12+ characters) on Render. On every start the server creates that account or updates its password, and it is always an admin. It logs in with that password only: "Continue with Google" and "Forgot password" are disabled for it, so whoever owns that address elsewhere can't take it over. To change the password, change it on Render.
+**Built-in admin:** the email is `admin@crewboard.app` (set in code; override with `SITE_ADMIN_EMAIL`). Set only `SITE_ADMIN_PASSWORD` (12+ characters) on Render; the password is never stored in the repository. Without a password, no built-in admin exists. On every start the server creates that account or updates its password, and it is always an admin. It logs in with that password only: "Continue with Google" and "Forgot password" are disabled for it, so whoever owns that address elsewhere can't take it over. To change the password, change it on Render.
 
-**Email:** set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER`, `SMTP_PASS` (a Gmail App Password) and `MAIL_FROM`. If the host blocks SMTP, use a free `BREVO_API_KEY` instead. Admin panel → System has **Check connection** and **Send test email**.
+**Profile & settings** (`/settings`, avatar menu): change your name, change your password (or set one if you only used Google), and log out on every device. Changing the password logs out your other devices.
+
+**Email is optional and off for now.** Without it, "Forgot password" tells people to ask an admin, who uses **Users → Set a new password**. To turn email on later: set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER`, `SMTP_PASS` (a Gmail App Password) and `MAIL_FROM`. If the host blocks SMTP, use a free `BREVO_API_KEY` instead. Admin panel → System has **Check connection** and **Send test email**.
 
 Who else is an admin: set `ADMIN_EMAILS` on Render (comma-separated). The account must have **confirmed** that email, so nobody can become an admin by signing up with your address. Admins can't suspend or delete themselves or each other. Card and comment contents are never shown in the panel.
 

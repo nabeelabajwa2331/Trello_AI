@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { prisma } from './db.js';
 import { env } from './env.js';
 import { HttpError, appOrigin, handle, parse } from './http.js';
-import { mailer, resetEmail, sendQuietly, verifyEmail } from './mail.js';
+import { mailEnabled, mailer, resetEmail, sendQuietly, verifyEmail } from './mail.js';
 import { disconnectSession, disconnectUser } from './realtime.js';
 
 export const COOKIE = 'cb_token';
@@ -72,6 +72,10 @@ export const isAdmin = (u: { email: string; emailVerifiedAt?: Date | null; suspe
 export async function ensureSiteAdmin() {
   const { email, password, name } = env.siteAdmin;
   if (!email) return;
+  if (!password) {
+    console.log(`No SITE_ADMIN_PASSWORD set, so the built-in admin (${email}) is not active.`);
+    return;
+  }
   if (password.length < 12) {
     console.error('SITE_ADMIN_PASSWORD must be at least 12 characters. The site admin account was not set up.');
     return;
@@ -232,7 +236,9 @@ const nextColor = async () => AVATAR_COLORS[(await prisma.user.count()) % AVATAR
 export const authRouter = Router();
 
 /** Public settings the login page needs. */
-authRouter.get('/config', (_req, res) => res.json({ googleClientId: env.googleClientId || null, emailConfirmation: env.requireEmailConfirmation }));
+authRouter.get('/config', (_req, res) =>
+  res.json({ googleClientId: env.googleClientId || null, emailConfirmation: env.requireEmailConfirmation, emailEnabled: mailEnabled }),
+);
 
 authRouter.post(
   '/signup',
@@ -432,5 +438,65 @@ authRouter.get(
     const user = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!user) throw new HttpError(401, 'Your session ended. Log in again.');
     res.json({ user: { ...publicUser(user), isAdmin: isAdmin(user), adminPending: isPendingAdmin(user) } });
+  }),
+);
+
+/* ------------------------------------------------------------------ profile & settings */
+
+/** What the settings page needs about your own account. */
+authRouter.get(
+  '/account',
+  requireUser,
+  handle(async (req, res) => {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) throw new HttpError(401, 'Your session ended. Log in again.');
+    const sessions = await prisma.session.count({ where: { userId: user.id, expiresAt: { gt: new Date() } } });
+    res.json({
+      user: publicUser(user),
+      hasPassword: !!user.passwordHash,
+      usesGoogle: !!user.googleId,
+      builtInAdmin: isSiteAdminAccount(user.email),
+      createdAt: user.createdAt.toISOString(),
+      sessions,
+    });
+  }),
+);
+
+authRouter.patch(
+  '/account',
+  requireUser,
+  handle(async (req, res) => {
+    const { name } = parse(z.object({ name: z.string().trim().min(2, 'Use at least 2 characters.').max(60) }), req.body);
+    const user = await prisma.user.update({ where: { id: req.userId }, data: { name } });
+    res.json({ user: publicUser(user) });
+  }),
+);
+
+/**
+ * Change your password (or set one, if you only used Google so far). Needs the current password when there is one.
+ * Every other device is logged out; this one stays logged in.
+ */
+authRouter.post(
+  '/password',
+  authLimit,
+  requireUser,
+  handle(async (req, res) => {
+    const body = parse(z.object({ currentPassword: z.string().max(200).optional(), newPassword: password }), req.body);
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user) throw new HttpError(401, 'Your session ended. Log in again.');
+    if (isSiteAdminAccount(user.email)) throw new HttpError(403, "This admin's password is set on the server (SITE_ADMIN_PASSWORD). Change it there.");
+    if (user.passwordHash) {
+      if (!body.currentPassword || !(await bcrypt.compare(body.currentPassword, user.passwordHash))) {
+        throw new HttpError(400, 'Your current password is not right.');
+      }
+      if (await bcrypt.compare(body.newPassword, user.passwordHash)) throw new HttpError(400, 'Choose a password different from the current one.');
+    }
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await bcrypt.hash(body.newPassword, 10) } });
+    // Log out everywhere else; keep this browser.
+    const others = await prisma.session.findMany({ where: { userId: user.id, NOT: { id: req.sessionId } }, select: { id: true } });
+    await prisma.session.deleteMany({ where: { id: { in: others.map((s) => s.id) } } });
+    for (const s of others) void disconnectSession(user.id, s.id);
+    failedLogins.delete(user.email);
+    res.json({ ok: true, loggedOutElsewhere: others.length });
   }),
 );

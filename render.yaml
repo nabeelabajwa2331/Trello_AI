@@ -24,9 +24,7 @@ services:
       # Off by default. "true" = signup sends a confirmation link and email invites need a confirmed email.
       - key: REQUIRE_EMAIL_CONFIRMATION
         value: "false"
-      # Built-in admin that logs in with a password (no personal Gmail needed).
-      - key: SITE_ADMIN_EMAIL
-        sync: false # e.g. admin@crewboard.invalid
+      # Built-in admin: admin@crewboard.app (change with SITE_ADMIN_EMAIL). Set only the password here.
       - key: SITE_ADMIN_PASSWORD
         sync: false # 12+ characters; change it here to change it in the app
       # Alternative to SMTP if the host blocks it: free API key from brevo.com (sender must be verified there)

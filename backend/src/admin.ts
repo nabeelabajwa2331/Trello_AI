@@ -3,6 +3,7 @@
  * Shows counts and account details. It never returns the contents of anyone's cards or comments.
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { env } from './env.js';
@@ -68,6 +69,7 @@ admin.get(
         emailConfirmation: env.requireEmailConfirmation,
         google: !!env.googleClientId,
         appUrl: env.appUrl || null,
+        appUrlSource: env.appUrlSource,
         admins: [...env.adminEmails, ...(env.siteAdmin.email ? [`${env.siteAdmin.email} (built-in)`] : [])],
       },
     });
@@ -177,6 +179,19 @@ admin.post(
     if (suspended) await endAllSessions(u.id);
     console.log(`[admin] ${req.userId} ${suspended ? 'suspended' : 'unsuspended'} ${u.email}`);
     res.json({ ok: true, suspended });
+  }),
+);
+
+/** For someone who forgot their password while email is off: set a new one and tell them yourself. */
+admin.post(
+  '/users/:userId/password',
+  handle(async (req, res) => {
+    const { password } = parse(z.object({ password: z.string().min(8, 'Use at least 8 characters.').max(200) }), req.body);
+    const u = await targetUser(req);
+    await prisma.user.update({ where: { id: u.id }, data: { passwordHash: await bcrypt.hash(password, 10) } });
+    await endAllSessions(u.id);
+    console.log(`[admin] ${req.userId} set a new password for ${u.email}`);
+    res.json({ ok: true });
   }),
 );
 

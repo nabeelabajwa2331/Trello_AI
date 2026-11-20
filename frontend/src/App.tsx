@@ -7,9 +7,11 @@ import Workspace from './pages/Workspace';
 import BoardPage from './pages/BoardPage';
 import JoinPage from './pages/JoinPage';
 import AdminPage from './pages/AdminPage';
+import SettingsPage from './pages/SettingsPage';
 import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from './pages/PasswordPages';
 import NotFound from './pages/NotFound';
 import { LogoMark } from './components/ui/Logo';
+import { WelcomeSplash } from './components/WelcomeSplash';
 import { useStore } from './store/useStore';
 
 /**
@@ -93,9 +95,11 @@ export default function App() {
           <Route path="/b/:boardId/c/:cardId" element={<BoardPage />} />
           <Route path="/join/:token" element={<JoinPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <WelcomeSplash />
       <Toaster
         position="bottom-right"
         toastOptions={{
