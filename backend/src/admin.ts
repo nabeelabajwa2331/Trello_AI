@@ -1,7 +1,4 @@
-/**
- * Site admin panel API (/api/admin). Only for confirmed accounts listed in ADMIN_EMAILS.
- * Shows counts and account details. It never returns the contents of anyone's cards or comments.
- */
+/** Site admin panel API (/api/admin). */
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -206,10 +203,7 @@ admin.post(
   }),
 );
 
-/**
- * Deletes an account. Boards they own go to the next person (an admin first, then the longest-standing member);
- * boards with nobody else on them are deleted.
- */
+/** Deletes an account. */
 admin.delete(
   '/users/:userId',
   handle(async (req, res) => {
@@ -221,10 +215,15 @@ admin.delete(
     for (const { boardId } of owned) {
       const heir =
         (await prisma.boardMember.findFirst({ where: { boardId, role: 'admin', NOT: { userId: u.id } }, orderBy: { joinedAt: 'asc' } })) ??
-        (await prisma.boardMember.findFirst({ where: { boardId, role: { in: ['member', 'viewer'] }, NOT: { userId: u.id } }, orderBy: { joinedAt: 'asc' } }));
+        (await prisma.boardMember.findFirst({
+          where: { boardId, role: { in: ['member', 'viewer'] }, NOT: { userId: u.id } },
+          orderBy: { joinedAt: 'asc' },
+        }));
       if (heir) {
         await prisma.boardMember.update({ where: { boardId_userId: { boardId, userId: heir.userId } }, data: { role: 'owner' } });
-        await prisma.activity.create({ data: { boardId, userId: heir.userId, text: 'became the owner (the previous owner’s account was deleted)' } });
+        await prisma.activity.create({
+          data: { boardId, userId: heir.userId, text: 'became the owner (the previous owner’s account was deleted)' },
+        });
         touched.push(boardId);
         transferred++;
       } else {
@@ -247,7 +246,10 @@ admin.delete(
 admin.get(
   '/boards',
   handle(async (req, res) => {
-    const q = parse(z.object({ q: z.string().trim().max(100).optional(), page: z.coerce.number().int().min(1).max(10_000).default(1) }), req.query);
+    const q = parse(
+      z.object({ q: z.string().trim().max(100).optional(), page: z.coerce.number().int().min(1).max(10_000).default(1) }),
+      req.query,
+    );
     const PAGE = 25;
     const where = q.q ? { title: { contains: q.q } } : {};
     const [total, rows] = await Promise.all([

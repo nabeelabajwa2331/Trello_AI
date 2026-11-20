@@ -1,14 +1,6 @@
-import type { Board, Role } from '../types';
+import type { Role } from '../types';
 
-export type Action =
-  | 'view'
-  | 'comment'
-  | 'editCards'
-  | 'editLists'
-  | 'invite'
-  | 'manageMembers'
-  | 'editBoard'
-  | 'deleteBoard';
+type Action = 'view' | 'comment' | 'editCards' | 'editLists' | 'invite' | 'manageMembers' | 'editBoard' | 'deleteBoard';
 
 const matrix: Record<Action, Role[]> = {
   view: ['owner', 'admin', 'member', 'viewer'],
@@ -23,10 +15,6 @@ const matrix: Record<Action, Role[]> = {
 
 export function can(role: Role | undefined, action: Action): boolean {
   return !!role && matrix[action].includes(role);
-}
-
-export function roleOf(board: Board | undefined, userId: string): Role | undefined {
-  return board?.members.find((m) => m.userId === userId)?.role;
 }
 
 export const roleInfo: Record<Role, { label: string; hint: string }> = {

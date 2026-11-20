@@ -5,9 +5,14 @@
   "scripts": {
     "build": "npm ci --prefix frontend --include=dev && npm run build --prefix frontend && npm ci --prefix backend --include=dev",
     "start": "npm run start:prod --prefix backend",
-    "test": "npm test --prefix backend"
+    "test": "npm test --prefix backend",
+    "format": "prettier --write \"frontend/src/**/*.{ts,tsx,css}\" \"backend/src/**/*.ts\" \"backend/test/**/*.ts\" \"backend/scripts/**/*.mjs\" \"frontend/*.{js,ts,html}\" \"frontend/public/sw.js\" \"*.{json,yaml,md}\"",
+    "format:check": "prettier --check \"frontend/src/**/*.{ts,tsx,css}\" \"backend/src/**/*.ts\" \"backend/test/**/*.ts\""
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3"
   }
 }

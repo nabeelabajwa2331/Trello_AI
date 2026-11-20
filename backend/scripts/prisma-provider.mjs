@@ -1,11 +1,4 @@
-/**
- * Chooses the Prisma database from DATABASE_URL:
- *   postgresql://…  → PostgreSQL (Neon / Render, production)
- *   anything else   → SQLite (local file, development and tests)
- *
- * It copies prisma/schema.prisma to prisma/generated.prisma with the right provider.
- * Edit schema.prisma, never generated.prisma.
- */
+/** Writes prisma/generated.prisma from schema.prisma: PostgreSQL for postgres:// URLs, SQLite otherwise. Edit schema.prisma only. */
 import 'dotenv/config';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 

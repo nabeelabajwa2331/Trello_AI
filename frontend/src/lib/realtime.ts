@@ -1,14 +1,11 @@
-/**
- * Socket.IO connection. The server puts each socket in one room per board the user belongs to,
- * and pushes the full board after every change, so clients never drift apart.
- */
+/** Socket.IO connection. */
 import { io, type Socket } from 'socket.io-client';
 import type { Board, Notification, User } from '../types';
 
-export type SyncEvent = { board: Board; users: Record<string, User>; log: { text: string; actorId: string; cardId?: string } | null };
-export type InviteEvent = { type: 'invite'; invite: { id: string; fromUserId: string; role: string; boardTitle: string; boardCover: string } };
+type SyncEvent = { board: Board; users: Record<string, User>; log: { text: string; actorId: string; cardId?: string } | null };
+type InviteEvent = { type: 'invite'; invite: { id: string; fromUserId: string; role: string; boardTitle: string; boardCover: string } };
 
-export interface Handlers {
+interface Handlers {
   onSync: (e: SyncEvent) => void;
   onNotification: (n: Notification | InviteEvent) => void;
   onRemoved: (boardId: string) => void;

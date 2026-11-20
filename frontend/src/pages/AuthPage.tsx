@@ -84,11 +84,28 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
           <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
             {isSignup && (
               <Field id="name" label="Full name" error={errors.name}>
-                <input id="name" className="input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!errors.name} aria-describedby="name-err" />
+                <input
+                  id="name"
+                  className="input"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  aria-invalid={!!errors.name}
+                  aria-describedby="name-err"
+                />
               </Field>
             )}
             <Field id="email" label="Email" error={errors.email}>
-              <input id="email" type="email" className="input" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} aria-invalid={!!errors.email} aria-describedby="email-err" />
+              <input
+                id="email"
+                type="email"
+                className="input"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-invalid={!!errors.email}
+                aria-describedby="email-err"
+              />
             </Field>
             <Field id="password" label="Password" error={errors.password}>
               <div className="relative">
@@ -102,7 +119,12 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
                   aria-invalid={!!errors.password}
                   aria-describedby="password-err"
                 />
-                <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-muted hover:text-ink" aria-label={show ? 'Hide password' : 'Show password'}>
+                <button
+                  type="button"
+                  onClick={() => setShow((s) => !s)}
+                  className="absolute right-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-muted hover:text-ink"
+                  aria-label={show ? 'Hide password' : 'Show password'}
+                >
                   {show ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -115,12 +137,15 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
             <button className="btn-cta mt-2 py-3 text-[15px]" disabled={busy}>
               {busy ? 'One moment…' : isSignup ? 'Create account' : 'Log in'}
             </button>
-            {/* One row under the button: switch login/signup on the left, forgot password on the right.
-                Short wording + nowrap so both always fit on one line, even on a 320px phone. */}
+            {/* One row under the button: switch login/signup on the left, forgot password on the right. */}
             <div className="-mt-1 flex items-center justify-between gap-3 text-[13px] sm:text-sm">
               <p className="whitespace-nowrap text-muted">
                 {isSignup ? 'Have an account? ' : 'New here? '}
-                <Link to={isSignup ? '/login' : '/signup'} state={location.state} className="font-semibold text-ink underline decoration-accent decoration-2 underline-offset-4">
+                <Link
+                  to={isSignup ? '/login' : '/signup'}
+                  state={location.state}
+                  className="font-semibold text-ink underline decoration-accent decoration-2 underline-offset-4"
+                >
                   {isSignup ? 'Log in' : 'Create an account'}
                 </Link>
               </p>
@@ -142,7 +167,9 @@ export default function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
               <div key={i} className="w-14 rounded-md bg-accent" style={{ height: h * 8 }} />
             ))}
           </div>
-          <p className="font-display font-wide text-3xl font-bold leading-tight">Every task gets a card. Every card gets a name and a date.</p>
+          <p className="font-display font-wide text-3xl font-bold leading-tight">
+            Every task gets a card. Every card gets a name and a date.
+          </p>
           <p className="text-surface/60">That's the whole idea.</p>
         </div>
       </aside>

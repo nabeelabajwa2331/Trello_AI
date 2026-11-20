@@ -1,6 +1,4 @@
-/**
- * API tests: run with `npm test`. Uses its own SQLite file (prisma/test.db), reset before every run.
- */
+/** API tests: run with `npm test`. */
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
@@ -60,7 +58,11 @@ async function signup(name: string, email: string) {
 
 before(async () => {
   // Re-pick the provider first: generated.prisma may still say postgresql after a push to Neon.
-  execSync('node scripts/prisma-provider.mjs && npx prisma db push --force-reset --skip-generate', { cwd: new URL('..', import.meta.url), env: process.env, stdio: 'ignore' });
+  execSync('node scripts/prisma-provider.mjs && npx prisma db push --force-reset --skip-generate', {
+    cwd: new URL('..', import.meta.url),
+    env: process.env,
+    stdio: 'ignore',
+  });
   const { createAppServer } = await import('../src/app.js');
   const { mailer } = await import('../src/mail.js');
   mailer.send = async (m) => void mail.push({ to: m.to, subject: m.subject, text: m.text });
@@ -172,7 +174,8 @@ describe('security', () => {
   test('too many wrong passwords lock that account for a while', async () => {
     await signup('Locked Out', 'locked@example.edu');
     let last = 0;
-    for (let i = 0; i < 9; i++) last = (await new Client().post('/auth/login', { email: 'locked@example.edu', password: `wrong-${i}` })).status;
+    for (let i = 0; i < 9; i++)
+      last = (await new Client().post('/auth/login', { email: 'locked@example.edu', password: `wrong-${i}` })).status;
     assert.equal(last, 429);
     const r = await new Client().post('/auth/login', { email: 'locked@example.edu', password: 'password123' });
     assert.equal(r.status, 429, 'even the right password waits until the lock ends');
@@ -265,7 +268,10 @@ describe('site admin panel', () => {
     assert.deepEqual([r.status, r.body.transferred, r.body.deleted], [200, 1, 1]);
     const b = (await heir.c.get(`/boards/${shared.id}`)).body.board;
     assert.deepEqual(b.members, [{ userId: heir.id, role: 'owner' }]);
-    assert.equal((await adminC.get(`/admin/boards?q=Solo`)).body.boards.some((x: { id: string }) => x.id === solo.id), false);
+    assert.equal(
+      (await adminC.get(`/admin/boards?q=Solo`)).body.boards.some((x: { id: string }) => x.id === solo.id),
+      false,
+    );
   });
 
   test('the boards list shows counts, never card contents', async () => {
@@ -298,7 +304,9 @@ describe('built-in site admin (SITE_ADMIN_EMAIL / SITE_ADMIN_PASSWORD)', () => {
   });
 
   test("whoever really owns that Gmail can't take it over with Google or a reset email", async () => {
-    const g = await new Client().post('/auth/google', { credential: JSON.stringify({ sub: 'real-owner', email: 'admin@gmail.com', name: 'Real Owner' }) });
+    const g = await new Client().post('/auth/google', {
+      credential: JSON.stringify({ sub: 'real-owner', email: 'admin@gmail.com', name: 'Real Owner' }),
+    });
     assert.equal(g.status, 403);
     assert.match(g.body.error, /password only/);
     await new Client().post('/auth/forgot', { email: 'admin@gmail.com' });
@@ -385,7 +393,7 @@ describe('forgot password', () => {
   const sent = () => mail.filter((m) => /Reset your/.test(m.subject));
   const tokenFrom = (text: string) => tokenIn(text, 'reset-password');
 
-  test("unknown emails get the same answer and no email", async () => {
+  test('unknown emails get the same answer and no email', async () => {
     const r = await new Client().post('/auth/forgot', { email: 'nobody-here@example.edu' });
     assert.equal(r.status, 200);
     assert.equal(mailsTo('nobody-here@example.edu', /./).length, 0);
@@ -473,11 +481,15 @@ describe('continue with Google', () => {
     const r = await new Client().post('/auth/google', { credential: cred({ sub: 'g-real', email: 'real.person@gmail.com' }) });
     assert.equal(r.status, 200);
     assert.equal((await squatter.c.get('/auth/me')).status, 401, "squatter's session ended");
-    assert.equal((await new Client().post('/auth/login', { email: 'real.person@gmail.com', password: 'password123' })).status, 401, "squatter's password removed");
+    assert.equal(
+      (await new Client().post('/auth/login', { email: 'real.person@gmail.com', password: 'password123' })).status,
+      401,
+      "squatter's password removed",
+    );
     assert.equal(r.body.user.emailVerified, true);
   });
 
-  test("Google-only accounts get a clear message when they try a password", async () => {
+  test('Google-only accounts get a clear message when they try a password', async () => {
     const r = await new Client().post('/auth/login', { email: 'gina@gmail.com', password: 'whatever123' });
     assert.equal(r.status, 401);
     assert.match(r.body.error, /Google/);
@@ -492,7 +504,7 @@ describe('continue with Google', () => {
     assert.equal((await c.get('/auth/me')).status, 401);
   });
 
-  test("user lists never include password hashes", async () => {
+  test('user lists never include password hashes', async () => {
     const { c } = await signup('Hash Check', 'hash@example.edu');
     const b = await c.post('/boards', { title: 'Secrets?', template: 'blank' });
     const json = JSON.stringify(b.body);
@@ -516,7 +528,10 @@ describe('boards, lists and cards', () => {
 
   test('a new board uses the template and makes the creator owner', async () => {
     const { body } = await owner.c.get(`/boards/${boardId}`);
-    assert.deepEqual(lists.map((l) => body.board.lists[l].title), ['To do', 'Doing', 'Review', 'Done']);
+    assert.deepEqual(
+      lists.map((l) => body.board.lists[l].title),
+      ['To do', 'Doing', 'Review', 'Done'],
+    );
     assert.equal(body.board.lists[lists[3]].isDone, true);
     assert.deepEqual(body.board.members, [{ userId: owner.id, role: 'owner' }]);
     assert.equal(body.board.activity[0].text, 'created this board');
@@ -524,7 +539,9 @@ describe('boards, lists and cards', () => {
 
   test('cards keep their order when moved (fractional positions)', async () => {
     const add = async (t: string) => (await owner.c.post(`/lists/${lists[1]}/cards`, { title: t })).body.cardId as string;
-    const a = await add('A'), b = await add('B'), c = await add('C');
+    const a = await add('A'),
+      b = await add('B'),
+      c = await add('C');
     // Move C between A and B, then A to the end.
     await owner.c.post(`/cards/${c}/move`, { toListId: lists[1], index: 1 });
     const r = await owner.c.post(`/cards/${a}/move`, { toListId: lists[1], index: 2 });
@@ -654,7 +671,7 @@ describe('roles and invitations', () => {
     assert.equal(r.body.board, undefined);
   });
 
-  test("you can only edit your own comments", async () => {
+  test('you can only edit your own comments', async () => {
     const card = (await owner.c.post(`/lists/${todo}/cards`, { title: 'Discuss' })).body.cardId;
     const r = await owner.c.post(`/cards/${card}/comments`, { text: 'First!' });
     const commentId = r.body.board.cards[card].comments[0].id;

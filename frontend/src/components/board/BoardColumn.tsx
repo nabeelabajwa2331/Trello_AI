@@ -41,7 +41,13 @@ export function BoardColumn({ board, list, cardIds, canEdit, canDrag, onOpenCard
         overlay && 'rotate-[1.5deg] shadow-lift',
       )}
     >
-      <header className={clsx('flex items-center gap-2 px-3 pb-1 pt-2.5', canDrag && 'drag-handle touch-manipulation')} {...attributes} {...listeners} tabIndex={canDrag ? 0 : -1} aria-roledescription={canDrag ? 'Draggable list' : undefined}>
+      <header
+        className={clsx('flex items-center gap-2 px-3 pb-1 pt-2.5', canDrag && 'drag-handle touch-manipulation')}
+        {...attributes}
+        {...listeners}
+        tabIndex={canDrag ? 0 : -1}
+        aria-roledescription={canDrag ? 'Draggable list' : undefined}
+      >
         {renaming ? (
           <InlineInput
             initial={list.title}
@@ -66,15 +72,34 @@ export function BoardColumn({ board, list, cardIds, canEdit, canDrag, onOpenCard
             align="right"
             className="w-52"
             trigger={({ toggle }) => (
-              <button className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-line/60 hover:text-ink" onClick={toggle} onPointerDown={(e) => e.stopPropagation()} aria-label={`${list.title} list actions`}>
+              <button
+                className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-line/60 hover:text-ink"
+                onClick={toggle}
+                onPointerDown={(e) => e.stopPropagation()}
+                aria-label={`${list.title} list actions`}
+              >
                 <MoreHorizontal size={16} />
               </button>
             )}
           >
             {(close) => (
               <>
-                <MenuItem onClick={() => { setAdding(true); close(); }}>Add card</MenuItem>
-                <MenuItem onClick={() => { setRenaming(true); close(); }}>Rename list</MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    setAdding(true);
+                    close();
+                  }}
+                >
+                  Add card
+                </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    setRenaming(true);
+                    close();
+                  }}
+                >
+                  Rename list
+                </MenuItem>
                 <MenuItem
                   danger
                   onClick={() => {
@@ -92,20 +117,29 @@ export function BoardColumn({ board, list, cardIds, canEdit, canDrag, onOpenCard
       </header>
 
       <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-[12px] flex-col gap-2 overflow-y-auto px-2 pb-1 pt-1.5">
+        <div className="flex min-h-[12px] flex-col gap-2 overflow-y-auto px-2 pb-1 pt-3">
           {cardIds.map((id) =>
-            board.cards[id] ? <CardTile key={id} card={board.cards[id]} listId={list.id} done={!!list.isDone} canDrag={canDrag} onOpen={onOpenCard} /> : null,
+            board.cards[id] ? (
+              <CardTile key={id} card={board.cards[id]} listId={list.id} done={!!list.isDone} canDrag={canDrag} onOpen={onOpenCard} />
+            ) : null,
           )}
           {cardIds.length === 0 && !adding && (
-            <div className="rounded-card border border-dashed border-muted/50 px-3 py-4 text-center text-xs text-muted">{canDrag ? 'Drop cards here' : 'No cards'}</div>
+            <div className="rounded-card border border-dashed border-muted/50 px-3 py-4 text-center text-xs text-muted">
+              {canDrag ? 'Drop cards here' : 'No cards'}
+            </div>
           )}
         </div>
       </SortableContext>
 
       {canEdit && (
         <div className="p-2">
-          {adding ? <AddCardForm boardId={board.id} listId={list.id} onDone={() => setAdding(false)} /> : (
-            <button className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted hover:bg-line/60 hover:text-ink" onClick={() => setAdding(true)}>
+          {adding ? (
+            <AddCardForm boardId={board.id} listId={list.id} onDone={() => setAdding(false)} />
+          ) : (
+            <button
+              className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted hover:bg-line/60 hover:text-ink"
+              onClick={() => setAdding(true)}
+            >
               <Plus size={16} /> Add a card
             </button>
           )}
@@ -135,7 +169,10 @@ function AddCardForm({ boardId, listId, onDone }: { boardId: string; listId: str
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            save();
+          }
           if (e.key === 'Escape') onDone();
         }}
         placeholder="What needs doing?"
@@ -155,10 +192,23 @@ function AddCardForm({ boardId, listId, onDone }: { boardId: string; listId: str
   );
 }
 
-export function InlineInput({ initial, onSave, onCancel, className }: { initial: string; onSave: (v: string) => void; onCancel: () => void; className?: string }) {
+export function InlineInput({
+  initial,
+  onSave,
+  onCancel,
+  className,
+}: {
+  initial: string;
+  onSave: (v: string) => void;
+  onCancel: () => void;
+  className?: string;
+}) {
   const [v, setV] = useState(initial);
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
   return (
     <input
       ref={ref}

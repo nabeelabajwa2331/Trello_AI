@@ -2,10 +2,7 @@ import { prisma } from './db.js';
 import { publicUser } from './auth.js';
 import { can } from './permissions.js';
 
-/**
- * Serialises a board into the exact shape the frontend store uses (frontend/src/types.ts),
- * plus the users who appear on it. Sent over REST and over the socket.
- */
+/** Serialises a board into the exact shape the frontend store uses (frontend/src/types.ts), plus the users who appear on it. */
 export async function boardSnapshot(boardId: string) {
   const b = await prisma.board.findUnique({
     where: { id: boardId },
@@ -35,7 +32,13 @@ export async function boardSnapshot(boardId: string) {
       labels: safeJson(c.labels),
       assignees: c.assignees.map((a) => a.userId),
       due: c.due,
-      comments: c.comments.map((m) => ({ id: m.id, userId: m.userId, text: m.text, edited: m.edited, createdAt: m.createdAt.toISOString() })),
+      comments: c.comments.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        text: m.text,
+        edited: m.edited,
+        createdAt: m.createdAt.toISOString(),
+      })),
       createdAt: c.createdAt.toISOString(),
       archived: c.archived,
       archivedFrom: c.archived ? c.listId : undefined,
@@ -60,16 +63,26 @@ export async function boardSnapshot(boardId: string) {
       lists,
       cards,
       members: b.members.map((m) => ({ userId: m.userId, role: m.role })),
-      invites: b.invites.filter((i) => i.email).map((i) => ({ id: i.id, email: i.email!, role: i.role, createdAt: i.createdAt.toISOString() })),
-      inviteLink: link ? { role: link.role, token: link.token!, expiresAt: link.expiresAt ? link.expiresAt.toISOString().slice(0, 10) : '' } : null,
-      activity: b.activities.map((a) => ({ id: a.id, userId: a.userId, text: a.text, cardId: a.cardId ?? undefined, createdAt: a.createdAt.toISOString() })),
+      invites: b.invites
+        .filter((i) => i.email)
+        .map((i) => ({ id: i.id, email: i.email!, role: i.role, createdAt: i.createdAt.toISOString() })),
+      inviteLink: link
+        ? { role: link.role, token: link.token!, expiresAt: link.expiresAt ? link.expiresAt.toISOString().slice(0, 10) : '' }
+        : null,
+      activity: b.activities.map((a) => ({
+        id: a.id,
+        userId: a.userId,
+        text: a.text,
+        cardId: a.cardId ?? undefined,
+        createdAt: a.createdAt.toISOString(),
+      })),
       updatedAt: b.updatedAt.toISOString(),
     },
     users,
   };
 }
 
-export type Snapshot = NonNullable<Awaited<ReturnType<typeof boardSnapshot>>>;
+type Snapshot = NonNullable<Awaited<ReturnType<typeof boardSnapshot>>>;
 
 /** Members and viewers don't see invite links or who else was invited; only people who can invite do. */
 export function forRole(board: Snapshot['board'], role: string): Snapshot['board'] {

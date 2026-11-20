@@ -28,7 +28,9 @@ export default function JoinPage() {
           <>
             <h1 className="text-2xl font-extrabold">Couldn't join the board</h1>
             <p className="text-muted">{error}</p>
-            <Link to="/boards" className="btn-primary">Go to your boards</Link>
+            <Link to="/boards" className="btn-primary">
+              Go to your boards
+            </Link>
           </>
         ) : (
           <p className="text-muted">Joining the board…</p>

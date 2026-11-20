@@ -21,7 +21,12 @@ function Arm({ d }: { d: string }) {
 /** "Crewbie": the Crewboard mascot, giving you a high five. */
 function HighFive() {
   return (
-    <svg viewBox="0 0 320 240" className="h-auto w-[min(320px,80vw)]" role="img" aria-label="A happy yellow character gives you a high five">
+    <svg
+      viewBox="0 0 320 240"
+      className="h-auto w-[min(320px,80vw)]"
+      role="img"
+      aria-label="A happy yellow character gives you a high five"
+    >
       <ellipse cx="130" cy="224" rx="64" ry="8" fill={INK} opacity="0.12" />
       <g className="cb-bob">
         <Arm d="M76 152 C56 160 50 178 58 192" />
@@ -65,12 +70,23 @@ function HighFive() {
 /** The boss: crown, sunglasses, red tie, waving. */
 function Boss() {
   return (
-    <svg viewBox="0 0 300 250" className="h-auto w-[min(300px,78vw)]" role="img" aria-label="A boss character in sunglasses and a crown waves at you">
+    <svg
+      viewBox="0 0 300 250"
+      className="h-auto w-[min(300px,78vw)]"
+      role="img"
+      aria-label="A boss character in sunglasses and a crown waves at you"
+    >
       <ellipse cx="140" cy="236" rx="66" ry="8" fill={INK} opacity="0.12" />
       <g className="cb-bob">
         <Arm d="M84 166 C62 172 56 190 64 204" />
         {/* crown */}
-        <path d="M104 78 L106 46 L124 64 L140 38 L156 64 L174 46 L176 78 Z" fill={YELLOW} stroke={INK} strokeWidth="4" strokeLinejoin="round" />
+        <path
+          d="M104 78 L106 46 L124 64 L140 38 L156 64 L174 46 L176 78 Z"
+          fill={YELLOW}
+          stroke={INK}
+          strokeWidth="4"
+          strokeLinejoin="round"
+        />
         <circle cx="140" cy="38" r="5" fill="#B8443A" stroke={INK} strokeWidth="2.5" />
         <circle cx="106" cy="46" r="4" fill={SOFT} stroke={INK} strokeWidth="2.5" />
         <circle cx="174" cy="46" r="4" fill={SOFT} stroke={INK} strokeWidth="2.5" />
@@ -88,7 +104,13 @@ function Boss() {
         <ellipse cx="176" cy="154" rx="9" ry="5" fill={CHEEK} opacity="0.5" />
         {/* collar and tie */}
         <path d="M122 182 L140 192 L158 182" stroke={INK} strokeWidth="4" fill="none" strokeLinejoin="round" />
-        <path d="M134 190 L146 190 L143 198 L150 222 L140 232 L130 222 L137 198 Z" fill="#B8443A" stroke={INK} strokeWidth="3.5" strokeLinejoin="round" />
+        <path
+          d="M134 190 L146 190 L143 198 L150 222 L140 232 L130 222 L137 198 Z"
+          fill="#B8443A"
+          stroke={INK}
+          strokeWidth="3.5"
+          strokeLinejoin="round"
+        />
         <ellipse cx="116" cy="228" rx="17" ry="7" fill={INK} />
         <ellipse cx="164" cy="228" rx="17" ry="7" fill={INK} />
         {/* waving arm */}
@@ -96,17 +118,21 @@ function Boss() {
           <Arm d="M194 152 C216 140 226 120 230 98" />
           <circle cx="232" cy="86" r="17" fill={YELLOW} stroke={INK} strokeWidth="4" />
           <path d="M223 77 L220 67 M231 73 L231 62 M239 75 L242 65" stroke={INK} strokeWidth="4" strokeLinecap="round" />
-          <path d="M254 70 Q262 80 254 92 M262 64 Q274 80 262 98" stroke={INK} strokeWidth="3.5" strokeLinecap="round" fill="none" opacity="0.6" />
+          <path
+            d="M254 70 Q262 80 254 92 M262 64 Q274 80 262 98"
+            stroke={INK}
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            fill="none"
+            opacity="0.6"
+          />
         </g>
       </g>
     </svg>
   );
 }
 
-/**
- * Shown once, right after logging in or signing up (never on a reload).
- * Closes by itself, or with a tap / Esc, and the boards are behind it.
- */
+/** Shown once, right after logging in or signing up (never on a reload). */
 export function WelcomeSplash() {
   const welcome = useStore((s) => s.welcome);
   const name = useStore((s) => s.users[s.me]?.name ?? '');

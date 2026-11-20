@@ -3,10 +3,7 @@ import clsx from 'clsx';
 
 const EDGE = 8; // keep menus at least this far from the screen edges
 
-/**
- * Small dropdown anchored to a trigger. Closes on outside click and Esc.
- * On narrow screens it slides sideways if it would stick out past either edge of the screen.
- */
+/** Small dropdown anchored to a trigger. */
 export function Popover({
   trigger,
   children,
@@ -72,7 +69,17 @@ export function Popover({
   );
 }
 
-export function MenuItem({ children, onClick, active, danger }: { children: ReactNode; onClick: () => void; active?: boolean; danger?: boolean }) {
+export function MenuItem({
+  children,
+  onClick,
+  active,
+  danger,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  danger?: boolean;
+}) {
   return (
     <button
       type="button"

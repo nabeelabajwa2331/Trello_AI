@@ -4,11 +4,11 @@ A Kanban board for student and small-team projects: boards, lists and cards, ass
 
 ## Databases
 
-| Where | Database | Data |
-|---|---|---|
-| Live site (Render) | PostgreSQL on Neon | Real data only: the accounts and boards people create. |
-| Your laptop | SQLite file `backend/prisma/dev.db` | Starts empty. Sign up locally to try changes. Never uploaded. |
-| Automated tests | SQLite file `backend/prisma/test.db` | Temporary accounts the tests create and wipe on every run. |
+| Where              | Database                             | Data                                                          |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------- |
+| Live site (Render) | PostgreSQL on Neon                   | Real data only: the accounts and boards people create.        |
+| Your laptop        | SQLite file `backend/prisma/dev.db`  | Starts empty. Sign up locally to try changes. Never uploaded. |
+| Automated tests    | SQLite file `backend/prisma/test.db` | Temporary accounts the tests create and wipe on every run.    |
 
 The app picks the database from `DATABASE_URL`: a `postgresql://` address uses PostgreSQL, anything else uses SQLite (`backend/scripts/prisma-provider.mjs`).
 
@@ -32,7 +32,7 @@ Every push to `main` redeploys automatically. The free plan sleeps after 15 minu
 
 `/admin` is for whoever runs the site (not board owners). It shows totals, a 14-day signups chart, setup status (email, Google, site address), a searchable user list, and a board list with counts only. Admins can resend confirmation emails, suspend accounts (blocks login and ends sessions) and delete accounts. A deleted user's boards go to the next person on them; boards with nobody else are deleted.
 
-**Built-in admin:** the email is `admin@crewboard.app` (set in code; override with `SITE_ADMIN_EMAIL`). Set only `SITE_ADMIN_PASSWORD` (12+ characters) on Render; the password is never stored in the repository. Without a password, no built-in admin exists. On every start the server creates that account or updates its password, and it is always an admin. It logs in with that password only: "Continue with Google" and "Forgot password" are disabled for it, so whoever owns that address elsewhere can't take it over. To change the password, change it on Render.
+**Built-in admin:** the email is `crewadmin@gmail.com` (set in code; override with `SITE_ADMIN_EMAIL`). Set only `SITE_ADMIN_PASSWORD` (12+ characters) on Render; the password is never stored in the repository. Without a password, no built-in admin exists. On every start the server creates that account or updates its password, and it is always an admin. It logs in with that password only: "Continue with Google" and "Forgot password" are disabled for it, so whoever owns that address elsewhere can't take it over. To change the password, change it on Render.
 
 **Profile & settings** (`/settings`, avatar menu): change your name, change your password (or set one if you only used Google), and log out on every device. Changing the password logs out your other devices.
 
@@ -48,7 +48,7 @@ Sign-in with Google uses only the **OAuth Client ID**; no client secret is neede
 2. Under **Authorized JavaScript origins**, add every address the app is opened from:
    - `http://localhost:5173` and `http://localhost:5174` (local)
    - your Render URL, e.g. `https://crewboard.onrender.com`
-   No redirect URIs are needed.
+     No redirect URIs are needed.
 3. Put the Client ID in `backend/.env` as `GOOGLE_CLIENT_ID` (local) and in Render's environment variables (live).
 
 If `GOOGLE_CLIENT_ID` is empty, the Google button is hidden and email sign-in works as before.
@@ -77,6 +77,7 @@ Open the app, sign up, and create a board. To try live updates, sign up a second
 `npm run db:reset` (in `backend/`) empties the local database.
 
 ### Tests
+
 `npm test` in `backend/` runs 29 API tests (sign-in, Google, forgot password, card ordering, validation, roles, invitations, notifications) against a separate `prisma/test.db`. They never touch your local or live data.
 
 ## How it fits together
@@ -100,15 +101,16 @@ React (Vite) ──REST /api──▶ Express ──Prisma──▶ SQLite
 
 ### Where things live
 
-| Path | What it is |
-|---|---|
-| `backend/prisma/schema.prisma` | Data model |
-| `backend/src/routes.ts` | All REST endpoints |
-| `backend/src/realtime.ts` | Socket.IO rooms, presence, broadcasts |
-| `backend/src/snapshot.ts` | Turns a board into the JSON shape the frontend uses |
-| `frontend/src/store/useStore.ts` | App state and every action (optimistic update + API call) |
-| `frontend/src/lib/api.ts`, `lib/realtime.ts` | HTTP client and socket connection |
-| `frontend/src/index.css`, `tailwind.config.js` | Colour tokens (beige, graphite, yellow; light and dark) |
+| Path                                           | What it is                                                |
+| ---------------------------------------------- | --------------------------------------------------------- |
+| `backend/prisma/schema.prisma`                 | Data model                                                |
+| `backend/src/routes.ts`                        | All REST endpoints                                        |
+| `backend/src/realtime.ts`                      | Socket.IO rooms, presence, broadcasts                     |
+| `backend/src/snapshot.ts`                      | Turns a board into the JSON shape the frontend uses       |
+| `frontend/src/store/useStore.ts`               | App state and every action (optimistic update + API call) |
+| `frontend/src/lib/api.ts`, `lib/realtime.ts`   | HTTP client and socket connection                         |
+| `frontend/src/index.css`, `tailwind.config.js` | Colour tokens (beige, graphite, yellow; light and dark)   |
 
 ### Looking inside the database
+
 `npm run studio` in `backend/` opens Prisma Studio in your browser for whichever database `DATABASE_URL` points to. On the live database, Neon's dashboard also has a table viewer and SQL editor.

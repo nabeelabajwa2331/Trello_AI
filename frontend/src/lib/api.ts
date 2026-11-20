@@ -1,5 +1,8 @@
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -11,9 +14,23 @@ let onSessionEnded: (() => void) | null = null;
 export const setSessionEndedHandler = (fn: () => void) => void (onSessionEnded = fn);
 
 // Wrong passwords etc. also answer 401 on these, and they don't mean "your session ended".
-const AUTH_FORMS = ['/auth/login', '/auth/signup', '/auth/google', '/auth/forgot', '/auth/reset', '/auth/verify', '/auth/me', '/auth/logout', '/bootstrap'];
+const AUTH_FORMS = [
+  '/auth/login',
+  '/auth/signup',
+  '/auth/google',
+  '/auth/forgot',
+  '/auth/reset',
+  '/auth/verify',
+  '/auth/me',
+  '/auth/logout',
+  '/bootstrap',
+];
 
-export async function api<T = unknown>(path: string, method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' = 'GET', body?: unknown): Promise<T> {
+export async function api<T = unknown>(
+  path: string,
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE' = 'GET',
+  body?: unknown,
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(BASE + path, {

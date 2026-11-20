@@ -6,11 +6,7 @@ import { env } from './env.js';
 import { COOKIE, sessionFromToken } from './auth.js';
 import { boardSnapshot, forRole } from './snapshot.js';
 
-/**
- * Rooms:
- *   user:<id>   every socket of one user (notifications, membership changes)
- *   board:<id>  everyone currently able to see a board (board changes, presence)
- */
+/** Rooms: `user:<id>` for one person's sockets (notifications), `board:<id>` for everyone on a board (changes, presence). */
 let io: Server | null = null;
 
 export function initRealtime(server: HttpServer) {
@@ -59,10 +55,7 @@ async function emitPresence(boardId: string) {
 
 export type Log = { text: string; actorId: string; cardId?: string };
 
-/**
- * Sends the latest board to everyone on it. Each person gets the version their role may see:
- * invite links and pending invite emails go only to owners and admins.
- */
+/** Sends the latest board to everyone on it. */
 export async function broadcastBoard(boardId: string, log: Log | null) {
   if (!io) return;
   const snap = await boardSnapshot(boardId);

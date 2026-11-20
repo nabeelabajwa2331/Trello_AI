@@ -9,31 +9,24 @@ export const env = {
   /** Site admins: comma-separated emails. Only confirmed accounts with these emails get the admin panel. */
   adminEmails: new Set(
     // ADMIN_EMAIL (no S) is accepted too, because it's an easy name to get wrong.
-    [process.env.ADMIN_EMAILS, process.env.ADMIN_EMAIL].filter(Boolean).join(',')
+    [process.env.ADMIN_EMAILS, process.env.ADMIN_EMAIL]
+      .filter(Boolean)
+      .join(',')
       .split(',')
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),
   ),
-  /**
-   * Built-in site admin that logs in with a password set here (not a personal Gmail).
-   * Created/updated on every start. Google sign-in and "forgot password" are disabled for it.
-   */
+  /** Built-in site admin that logs in with a password set here (not a personal Gmail). */
   siteAdmin: {
-    // Built in so there is always one admin to log in with (and share with a mentor).
-    // Only the password comes from the host: SITE_ADMIN_PASSWORD. No password set = no admin created.
-    email: (process.env.SITE_ADMIN_EMAIL || 'admin@crewboard.app').trim().toLowerCase(),
+    email: (process.env.SITE_ADMIN_EMAIL || 'crewadmin@gmail.com').trim().toLowerCase(),
     password: process.env.SITE_ADMIN_PASSWORD ?? '',
     name: (process.env.SITE_ADMIN_NAME ?? 'Admin').trim() || 'Admin',
   },
-  /** Brevo (brevo.com) API key: sends email over HTTPS. Use it if your host blocks SMTP. Takes priority over SMTP. */
+  /** Brevo API key: email over HTTPS, for hosts that block SMTP. Takes priority over SMTP. */
   brevoKey: (process.env.BREVO_API_KEY ?? '').trim(),
-  /**
-   * Email confirmation (off by default). When on, signup sends a confirmation link and email invites can
-   * only be accepted after confirming. Off suits demo/test accounts with made-up addresses.
-   */
+  /** Email confirmation (off by default). */
   requireEmailConfirmation: (process.env.REQUIRE_EMAIL_CONFIRMATION ?? '').trim().toLowerCase() === 'true',
-  /** Public address of the site, used in emailed links. Falls back to the request's own address. */
-  // Falls back to RENDER_EXTERNAL_URL, which Render sets automatically to the service's public address.
+  /** Public address for links and previews: APP_URL, else Render's RENDER_EXTERNAL_URL, else the request's own address. */
   appUrl: (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, ''),
   appUrlSource: process.env.APP_URL ? 'APP_URL' : process.env.RENDER_EXTERNAL_URL ? 'Render' : null,
   /** Outgoing email (password resets). Empty SMTP_HOST = links are printed to the server log instead. */

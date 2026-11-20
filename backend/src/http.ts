@@ -3,7 +3,10 @@ import { ZodError, type ZodTypeAny, type z } from 'zod';
 import { env } from './env.js';
 
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -12,10 +15,8 @@ export const notFound = (what = 'That item') => new HttpError(404, `${what} does
 export const forbidden = (msg = "You don't have permission to do that.") => new HttpError(403, msg);
 
 /** Wraps async route handlers so thrown errors reach the error middleware. */
-export const handle =
-  (fn: (req: Request, res: Response) => Promise<unknown>) =>
-  (req: Request, res: Response, next: NextFunction) =>
-    fn(req, res).catch(next);
+export const handle = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) =>
+  fn(req, res).catch(next);
 
 export function parse<T extends ZodTypeAny>(schema: T, data: unknown): z.infer<T> {
   return schema.parse(data);

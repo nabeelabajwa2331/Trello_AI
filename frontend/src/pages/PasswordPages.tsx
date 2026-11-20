@@ -48,8 +48,8 @@ export function ForgotPasswordPage() {
         <div className="flex flex-col gap-2">
           <h1 className="font-wide text-3xl font-extrabold tracking-tight">Forgot your password?</h1>
           <p className="text-muted">
-            This site doesn’t send emails yet, so a reset link can’t reach you. <b className="text-ink">Ask your admin</b> to set a new password for you from the
-            admin panel.
+            This site doesn’t send emails yet, so a reset link can’t reach you. <b className="text-ink">Ask your admin</b> to set a new
+            password for you from the admin panel.
           </p>
           <p className="text-muted">
             Then log in with it and choose your own in <b className="text-ink">Profile & settings → Change password</b>.
@@ -88,13 +88,18 @@ export function ForgotPasswordPage() {
         <div className="flex flex-col gap-2">
           <h1 className="font-wide text-3xl font-extrabold tracking-tight">Check your email</h1>
           <p className="text-muted">
-            If <b className="text-ink">{sentTo}</b> has a Crewboard account, we've sent it a link to choose a new password. The link works once and expires in 1 hour.
+            If <b className="text-ink">{sentTo}</b> has a Crewboard account, we've sent it a link to choose a new password. The link works
+            once and expires in 1 hour.
           </p>
           <p className="text-sm text-muted">Nothing after a few minutes? Check your spam folder, or try again.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link to="/login" className="btn-cta">Back to log in</Link>
-          <button className="btn-ghost" onClick={() => setSentTo('')}>Use a different email</button>
+          <Link to="/login" className="btn-cta">
+            Back to log in
+          </Link>
+          <button className="btn-ghost" onClick={() => setSentTo('')}>
+            Use a different email
+          </button>
         </div>
       </Shell>
     );
@@ -108,11 +113,23 @@ export function ForgotPasswordPage() {
       </div>
       <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="forgot-email" className="text-sm font-semibold">Email</label>
-          <input id="forgot-email" type="email" autoComplete="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
+          <label htmlFor="forgot-email" className="text-sm font-semibold">
+            Email
+          </label>
+          <input
+            id="forgot-email"
+            type="email"
+            autoComplete="email"
+            className="input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+          />
         </div>
         {error && <Alert>{error}</Alert>}
-        <button className="btn-cta py-3 text-[15px]" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button>
+        <button className="btn-cta py-3 text-[15px]" disabled={busy}>
+          {busy ? 'Sending…' : 'Send reset link'}
+        </button>
       </form>
       <Link to="/login" className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted hover:text-ink">
         <ArrowLeft size={15} /> Back to log in
@@ -158,7 +175,9 @@ export function VerifyEmailPage() {
             <h1 className="font-wide text-3xl font-extrabold tracking-tight">Email confirmed</h1>
             <p className="text-muted">Teammates can now invite you to their boards, and you can accept the invitations waiting for you.</p>
           </div>
-          <Link to={loggedIn ? '/boards' : '/login'} className="btn-cta self-start">{loggedIn ? 'Go to your boards' : 'Log in'}</Link>
+          <Link to={loggedIn ? '/boards' : '/login'} className="btn-cta self-start">
+            {loggedIn ? 'Go to your boards' : 'Log in'}
+          </Link>
         </>
       )}
       {state === 'failed' && (
@@ -167,7 +186,9 @@ export function VerifyEmailPage() {
             <h1 className="font-wide text-3xl font-extrabold tracking-tight">This link doesn't work anymore</h1>
             <p className="text-muted">{error}</p>
           </div>
-          <Link to={loggedIn ? '/boards' : '/login'} className="btn-cta self-start">{loggedIn ? 'Go to your boards' : 'Log in'}</Link>
+          <Link to={loggedIn ? '/boards' : '/login'} className="btn-cta self-start">
+            {loggedIn ? 'Go to your boards' : 'Log in'}
+          </Link>
           {loggedIn && <p className="text-sm text-muted">You can send a new link from the yellow banner at the top of your boards.</p>}
         </>
       )}
@@ -212,7 +233,9 @@ export function ResetPasswordPage() {
           <h1 className="font-wide text-3xl font-extrabold tracking-tight">This link doesn't work anymore</h1>
           <p className="text-muted">Reset links work once and expire after 1 hour. Ask for a new one and use the newest email.</p>
         </div>
-        <Link to="/forgot-password" className="btn-cta self-start">Send a new link</Link>
+        <Link to="/forgot-password" className="btn-cta self-start">
+          Send a new link
+        </Link>
       </Shell>
     );
   }
@@ -225,21 +248,47 @@ export function ResetPasswordPage() {
       </div>
       <form className="flex flex-col gap-4" onSubmit={submit} noValidate>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="new-password" className="text-sm font-semibold">New password</label>
+          <label htmlFor="new-password" className="text-sm font-semibold">
+            New password
+          </label>
           <div className="relative">
-            <input id="new-password" type={show ? 'text' : 'password'} autoComplete="new-password" className="input pr-10" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
-            <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-muted hover:text-ink" aria-label={show ? 'Hide password' : 'Show password'}>
+            <input
+              id="new-password"
+              type={show ? 'text' : 'password'}
+              autoComplete="new-password"
+              className="input pr-10"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={() => setShow((s) => !s)}
+              className="absolute right-1 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-md text-muted hover:text-ink"
+              aria-label={show ? 'Hide password' : 'Show password'}
+            >
               {show ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
           </div>
           <span className="text-xs text-muted">At least 8 characters.</span>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="confirm-password" className="text-sm font-semibold">Type it again</label>
-          <input id="confirm-password" type={show ? 'text' : 'password'} autoComplete="new-password" className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+          <label htmlFor="confirm-password" className="text-sm font-semibold">
+            Type it again
+          </label>
+          <input
+            id="confirm-password"
+            type={show ? 'text' : 'password'}
+            autoComplete="new-password"
+            className="input"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
         </div>
         {error && <Alert>{error}</Alert>}
-        <button className="btn-cta py-3 text-[15px]" disabled={busy}>{busy ? 'Saving…' : 'Save and log in'}</button>
+        <button className="btn-cta py-3 text-[15px]" disabled={busy}>
+          {busy ? 'Saving…' : 'Save and log in'}
+        </button>
       </form>
     </Shell>
   );

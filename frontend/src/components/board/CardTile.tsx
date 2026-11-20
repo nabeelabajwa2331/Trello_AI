@@ -7,6 +7,7 @@ import type { Card } from '../../types';
 import { LabelChip, DueChip } from '../ui/Chips';
 import { AvatarStack } from '../ui/Avatar';
 import { useStore } from '../../store/useStore';
+import { Peeker } from './Peeker';
 
 interface ViewProps {
   card: Card;
@@ -30,7 +31,7 @@ export function CardView({ card, done, overlay, dragging }: ViewProps) {
   return (
     <div
       className={clsx(
-        'flex flex-col gap-2 rounded-card border border-line bg-surface p-2.5 text-[13.5px] leading-snug shadow-card transition-shadow hover:shadow-hover',
+        'relative z-[1] flex flex-col gap-2 rounded-card border border-line bg-surface p-2.5 text-[13.5px] leading-snug shadow-card transition-shadow hover:shadow-hover',
         overlay && 'rotate-[2.5deg] cursor-grabbing shadow-lift',
         dragging && 'opacity-0',
         flashing && 'animate-flash',
@@ -79,6 +80,7 @@ export const CardTile = memo(function CardTile({ card, listId, done, canDrag, on
   return (
     <div
       ref={setNodeRef}
+      data-card-id={card.id}
       style={{ transform: CSS.Translate.toString(transform), transition }}
       {...attributes}
       {...listeners}
@@ -96,8 +98,12 @@ export const CardTile = memo(function CardTile({ card, listId, done, canDrag, on
         listeners?.onKeyDown?.(e);
       }}
       onContextMenu={(e) => canDrag && e.preventDefault()}
-      className={clsx('rounded-card outline-none focus-visible:ring-2 focus-visible:ring-focus', canDrag ? 'drag-handle cursor-grab touch-manipulation' : 'cursor-pointer')}
+      className={clsx(
+        'relative rounded-card outline-none focus-visible:ring-2 focus-visible:ring-focus',
+        canDrag ? 'drag-handle cursor-grab touch-manipulation' : 'cursor-pointer',
+      )}
     >
+      {!isDragging && <Peeker card={card} done={done} />}
       <CardView card={card} done={done} dragging={isDragging} />
     </div>
   );

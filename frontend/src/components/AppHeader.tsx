@@ -30,8 +30,8 @@ export function AppHeader() {
           <span>
             {adminPending ? (
               <>
-                <b>You're listed as a site admin.</b> Confirm your email to open the admin panel: we sent a link to <b>{me.email}</b>. Or log out and
-                use <b>Continue with Google</b> with this address, which confirms it right away.
+                <b>You're listed as a site admin.</b> Confirm your email to open the admin panel: we sent a link to <b>{me.email}</b>. Or
+                log out and use <b>Continue with Google</b> with this address, which confirms it right away.
               </>
             ) : (
               <>

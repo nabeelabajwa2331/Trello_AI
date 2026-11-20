@@ -5,9 +5,17 @@ import type { Board, Card, IncomingInvite, Notification, Role, TemplateId, User 
 import { api, ApiError, errorMessage, setSessionEndedHandler } from '../lib/api';
 import { connectRealtime, disconnectRealtime } from '../lib/realtime';
 import { firstName, uid } from '../lib/id';
+import { showActivity } from '../components/ActivityToast';
 
 type Snap = { board: Board; users: Record<string, User> };
-type Bootstrap = { settings?: { emailConfirmation?: boolean }; me: User; users: Record<string, User>; boards: Board[]; incoming: IncomingInvite[]; notifications: Notification[] };
+type Bootstrap = {
+  settings?: { emailConfirmation?: boolean };
+  me: User;
+  users: Record<string, User>;
+  boards: Board[];
+  incoming: IncomingInvite[];
+  notifications: Notification[];
+};
 
 interface State {
   status: 'loading' | 'guest' | 'ready';
@@ -62,7 +70,12 @@ interface State {
 
   // cards
   addCard: (boardId: string, listId: string, title: string) => void;
-  updateCard: (boardId: string, cardId: string, patch: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'assignees' | 'due'>>, _log?: string) => void;
+  updateCard: (
+    boardId: string,
+    cardId: string,
+    patch: Partial<Pick<Card, 'title' | 'description' | 'labels' | 'assignees' | 'due'>>,
+    _log?: string,
+  ) => void;
   applyLayout: (boardId: string, layout: Record<string, string[]>, cardId: string, fromListId: string) => void;
   moveCard: (boardId: string, cardId: string, toListId: string) => void;
   archiveCard: (boardId: string, cardId: string) => void;
@@ -88,14 +101,9 @@ interface State {
 
 export const findListOf = (board: Board, cardId: string) => board.listOrder.find((id) => board.lists[id]?.cardIds.includes(cardId));
 
-const onBoardPage = (boardId: string) => location.pathname.startsWith(`/b/${boardId}`);
-
 export const useStore = create<State>()(
   immer((set, get) => {
-    /**
-     * Optimistic update: change the screen now, send the request, then take the server's board as the truth.
-     * If the request fails, show why and reload the board, which rolls the change back.
-     */
+    /** Optimistic update: change the screen now, send the request, then take the server's board as the truth. */
     const run = async (boardId: string, optimistic: ((b: Board) => void) | null, request: () => Promise<Snap>): Promise<Snap | null> => {
       if (optimistic) set((s) => void (s.boards[boardId] && optimistic(s.boards[boardId])));
       try {
@@ -123,7 +131,8 @@ export const useStore = create<State>()(
           get().applySnapshot({ board, users }, true);
           if (log && log.actorId !== get().me) {
             if (log.cardId) set((s) => void (s.flash = { cardId: log.cardId!, at: Date.now() }));
-            if (onBoardPage(board.id)) toast(`${firstName(get().users[log.actorId]?.name ?? 'Someone')} ${log.text}`);
+            // Popup on every page, so teammates' changes are noticed even outside this board.
+            showActivity({ actorId: log.actorId, text: log.text, boardId: board.id, cardId: log.cardId });
           }
         },
         onNotification: (n) => {
@@ -170,10 +179,7 @@ export const useStore = create<State>()(
       flash: null,
 
       /* ---------------- session ---------------- */
-      /**
-       * First load. If the server is asleep (free hosting), requests fail or hang while it starts;
-       * keep trying for up to 2 minutes instead of treating the visitor as logged out.
-       */
+      /** First load. */
       init: async () => {
         const started = Date.now();
         for (;;) {
@@ -194,7 +200,20 @@ export const useStore = create<State>()(
       sessionEnded: () => {
         if (get().status !== 'ready') return;
         disconnectRealtime();
-        set((s) => Object.assign(s, { status: 'guest', me: '', isAdmin: false, users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {}, online: true }));
+        set((s) =>
+          Object.assign(s, {
+            status: 'guest',
+            me: '',
+            isAdmin: false,
+            users: {},
+            boards: {},
+            boardOrder: [],
+            incoming: [],
+            notifications: [],
+            presence: {},
+            online: true,
+          }),
+        );
         toast('Your session ended. Log in again to continue.');
       },
       logoutEverywhere: async () => {
@@ -204,7 +223,19 @@ export const useStore = create<State>()(
           if (!(e instanceof ApiError && e.status === 401)) return void toast.error(errorMessage(e));
         }
         disconnectRealtime();
-        set((s) => Object.assign(s, { status: 'guest', me: '', isAdmin: false, users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
+        set((s) =>
+          Object.assign(s, {
+            status: 'guest',
+            me: '',
+            isAdmin: false,
+            users: {},
+            boards: {},
+            boardOrder: [],
+            incoming: [],
+            notifications: [],
+            presence: {},
+          }),
+        );
         toast('Logged out on every device.');
       },
       resendVerification: async () => {
@@ -251,7 +282,19 @@ export const useStore = create<State>()(
         disconnectRealtime();
         window.google?.accounts.id.disableAutoSelect();
         await api('/auth/logout', 'POST').catch(() => {});
-        set((s) => Object.assign(s, { status: 'guest', me: '', isAdmin: false, users: {}, boards: {}, boardOrder: [], incoming: [], notifications: [], presence: {} }));
+        set((s) =>
+          Object.assign(s, {
+            status: 'guest',
+            me: '',
+            isAdmin: false,
+            users: {},
+            boards: {},
+            boardOrder: [],
+            incoming: [],
+            notifications: [],
+            presence: {},
+          }),
+        );
       },
       bootstrap: async () => {
         const d = await api<Bootstrap>('/bootstrap');
@@ -298,7 +341,12 @@ export const useStore = create<State>()(
           return null;
         }
       },
-      renameBoard: (boardId, title) => void run(boardId, (b) => void (b.title = title), () => api(`/boards/${boardId}`, 'PATCH', { title })),
+      renameBoard: (boardId, title) =>
+        void run(
+          boardId,
+          (b) => void (b.title = title),
+          () => api(`/boards/${boardId}`, 'PATCH', { title }),
+        ),
       toggleStar: (boardId) => {
         const starred = !get().boards[boardId]?.starred;
         set((s) => void (s.boards[boardId] && (s.boards[boardId].starred = starred)));
@@ -349,7 +397,12 @@ export const useStore = create<State>()(
           },
           () => api(`/boards/${boardId}/lists`, 'POST', { title }),
         ),
-      renameList: (boardId, listId, title) => void run(boardId, (b) => void (b.lists[listId].title = title), () => api(`/lists/${listId}`, 'PATCH', { title })),
+      renameList: (boardId, listId, title) =>
+        void run(
+          boardId,
+          (b) => void (b.lists[listId].title = title),
+          () => api(`/lists/${listId}`, 'PATCH', { title }),
+        ),
       deleteList: (boardId, listId) =>
         void run(
           boardId,
@@ -359,7 +412,12 @@ export const useStore = create<State>()(
           },
           () => api(`/lists/${listId}`, 'DELETE'),
         ),
-      reorderLists: (boardId, order) => void run(boardId, (b) => void (b.listOrder = order), () => api(`/boards/${boardId}/list-order`, 'PUT', { order })),
+      reorderLists: (boardId, order) =>
+        void run(
+          boardId,
+          (b) => void (b.listOrder = order),
+          () => api(`/boards/${boardId}/list-order`, 'PUT', { order }),
+        ),
 
       /* ---------------- cards ---------------- */
       addCard: (boardId, listId, title) =>
@@ -367,13 +425,26 @@ export const useStore = create<State>()(
           boardId,
           (b) => {
             const id = uid('tmp-');
-            b.cards[id] = { id, title, description: '', labels: [], assignees: [], due: null, comments: [], createdAt: new Date().toISOString() };
+            b.cards[id] = {
+              id,
+              title,
+              description: '',
+              labels: [],
+              assignees: [],
+              due: null,
+              comments: [],
+              createdAt: new Date().toISOString(),
+            };
             b.lists[listId].cardIds.push(id);
           },
           () => api(`/lists/${listId}/cards`, 'POST', { title }),
         ),
       updateCard: (boardId, cardId, patch) =>
-        void run(boardId, (b) => void (b.cards[cardId] && Object.assign(b.cards[cardId], patch)), () => api(`/cards/${cardId}`, 'PATCH', patch)),
+        void run(
+          boardId,
+          (b) => void (b.cards[cardId] && Object.assign(b.cards[cardId], patch)),
+          () => api(`/cards/${cardId}`, 'PATCH', patch),
+        ),
       applyLayout: (boardId, layout, cardId, fromListId) => {
         const b = get().boards[boardId];
         if (!b) return;
@@ -431,11 +502,21 @@ export const useStore = create<State>()(
           () => api(`/comments/${commentId}`, 'PATCH', { text }),
         ),
       deleteComment: (boardId, cardId, commentId) =>
-        void run(boardId, (b) => void (b.cards[cardId].comments = b.cards[cardId].comments.filter((x) => x.id !== commentId)), () => api(`/comments/${commentId}`, 'DELETE')),
+        void run(
+          boardId,
+          (b) => void (b.cards[cardId].comments = b.cards[cardId].comments.filter((x) => x.id !== commentId)),
+          () => api(`/comments/${commentId}`, 'DELETE'),
+        ),
 
       /* ---------------- members ---------------- */
-      invite: async (boardId, email, role) => !!(await run(boardId, null, () => api(`/boards/${boardId}/invites`, 'POST', { email, role }))),
-      revokeInvite: (boardId, inviteId) => void run(boardId, (b) => void (b.invites = b.invites.filter((i) => i.id !== inviteId)), () => api(`/invites/${inviteId}`, 'DELETE')),
+      invite: async (boardId, email, role) =>
+        !!(await run(boardId, null, () => api(`/boards/${boardId}/invites`, 'POST', { email, role }))),
+      revokeInvite: (boardId, inviteId) =>
+        void run(
+          boardId,
+          (b) => void (b.invites = b.invites.filter((i) => i.id !== inviteId)),
+          () => api(`/invites/${inviteId}`, 'DELETE'),
+        ),
       createInviteLink: (boardId, role) => void run(boardId, null, () => api(`/boards/${boardId}/invite-link`, 'POST', { role })),
       setRole: (boardId, userId, role) =>
         void run(
@@ -447,7 +528,11 @@ export const useStore = create<State>()(
           () => api(`/boards/${boardId}/members/${userId}`, 'PATCH', { role }),
         ),
       removeMember: (boardId, userId) =>
-        void run(boardId, (b) => void (b.members = b.members.filter((m) => m.userId !== userId)), () => api(`/boards/${boardId}/members/${userId}`, 'DELETE')),
+        void run(
+          boardId,
+          (b) => void (b.members = b.members.filter((m) => m.userId !== userId)),
+          () => api(`/boards/${boardId}/members/${userId}`, 'DELETE'),
+        ),
       acceptInvite: async (id) => {
         try {
           const snap = await api<Snap>(`/invites/${id}/accept`, 'POST');

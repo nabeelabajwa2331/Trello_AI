@@ -1,10 +1,6 @@
-import { addDays, differenceInCalendarDays, format, formatDistanceToNowStrict, parseISO } from 'date-fns';
+import { differenceInCalendarDays, format, formatDistanceToNowStrict, parseISO } from 'date-fns';
 
-export type DueStatus = 'none' | 'done' | 'over' | 'soon' | 'normal';
-
-export function isoDay(offsetDays = 0): string {
-  return format(addDays(new Date(), offsetDays), 'yyyy-MM-dd');
-}
+type DueStatus = 'none' | 'done' | 'over' | 'soon' | 'normal';
 
 export function dueStatus(due: string | null, done: boolean): DueStatus {
   if (!due) return 'none';

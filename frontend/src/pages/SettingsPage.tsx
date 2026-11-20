@@ -30,7 +30,11 @@ export default function SettingsPage() {
           <p className="eyebrow">Your account</p>
           <h1 className="mt-1 font-wide text-3xl font-extrabold tracking-tight">Profile & settings</h1>
         </div>
-        {error && <p role="alert" className="rounded-[8px] bg-over px-3 py-2 text-sm text-over-fg">{error}</p>}
+        {error && (
+          <p role="alert" className="rounded-[8px] bg-over px-3 py-2 text-sm text-over-fg">
+            {error}
+          </p>
+        )}
         {!account ? (
           !error && <div className="rounded-modal border border-line bg-surface p-10 text-center text-sm text-muted">Loading…</div>
         ) : (
@@ -54,8 +58,8 @@ export default function SettingsPage() {
               {account.builtInAdmin ? (
                 <p className="flex items-start gap-2 rounded-[8px] bg-column px-3 py-2.5 text-sm">
                   <ShieldCheck size={16} className="mt-0.5 shrink-0" />
-                  This is the built-in admin account. Its password is set on the server as <code className="font-mono text-xs">SITE_ADMIN_PASSWORD</code> (Render →
-                  Environment), so change it there.
+                  This is the built-in admin account. Its password is set on the server as{' '}
+                  <code className="font-mono text-xs">SITE_ADMIN_PASSWORD</code> (Render → Environment), so change it there.
                 </p>
               ) : (
                 <PasswordForm hasPassword={account.hasPassword} onSaved={load} />
@@ -108,12 +112,25 @@ function NameForm({ current, onSaved }: { current: string; onSaved: () => void }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-1.5">
-      <label htmlFor="settings-name" className="text-sm font-semibold">Name</label>
+      <label htmlFor="settings-name" className="text-sm font-semibold">
+        Name
+      </label>
       <div className="flex gap-2">
-        <input id="settings-name" className="input min-w-0 flex-1" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} autoComplete="name" />
-        <button className="btn-primary" disabled={!changed || busy}>{busy ? 'Saving…' : 'Save'}</button>
+        <input
+          id="settings-name"
+          className="input min-w-0 flex-1"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          maxLength={60}
+          autoComplete="name"
+        />
+        <button className="btn-primary" disabled={!changed || busy}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
       </div>
-      <p className={error ? 'text-xs font-medium text-danger' : 'text-xs text-muted'}>{error || 'This is how you appear to your team on cards, comments and activity.'}</p>
+      <p className={error ? 'text-xs font-medium text-danger' : 'text-xs text-muted'}>
+        {error || 'This is how you appear to your team on cards, comments and activity.'}
+      </p>
     </form>
   );
 }
@@ -134,7 +151,10 @@ function PasswordForm({ hasPassword, onSaved }: { hasPassword: boolean; onSaved:
     setBusy(true);
     setError('');
     try {
-      const r = await api<{ loggedOutElsewhere: number }>('/auth/password', 'POST', { currentPassword: hasPassword ? current : undefined, newPassword: next });
+      const r = await api<{ loggedOutElsewhere: number }>('/auth/password', 'POST', {
+        currentPassword: hasPassword ? current : undefined,
+        newPassword: next,
+      });
       toast(
         hasPassword
           ? `Password changed.${r.loggedOutElsewhere ? ` Logged out on ${r.loggedOutElsewhere} other device${r.loggedOutElsewhere === 1 ? '' : 's'}.` : ''}`
@@ -153,31 +173,72 @@ function PasswordForm({ hasPassword, onSaved }: { hasPassword: boolean; onSaved:
   const type = show ? 'text' : 'password';
   return (
     <form onSubmit={submit} className="flex flex-col gap-3" noValidate>
-      {!hasPassword && <p className="text-sm text-muted">You sign in with Google. Set a password if you also want to log in with your email.</p>}
+      {!hasPassword && (
+        <p className="text-sm text-muted">You sign in with Google. Set a password if you also want to log in with your email.</p>
+      )}
       {hasPassword && (
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="pw-current" className="text-sm font-semibold">Current password</label>
-          <input id="pw-current" type={type} className="input" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
+          <label htmlFor="pw-current" className="text-sm font-semibold">
+            Current password
+          </label>
+          <input
+            id="pw-current"
+            type={type}
+            className="input"
+            value={current}
+            onChange={(e) => setCurrent(e.target.value)}
+            autoComplete="current-password"
+          />
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="pw-new" className="text-sm font-semibold">New password</label>
-          <input id="pw-new" type={type} className="input" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" />
+          <label htmlFor="pw-new" className="text-sm font-semibold">
+            New password
+          </label>
+          <input
+            id="pw-new"
+            type={type}
+            className="input"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+            autoComplete="new-password"
+          />
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="pw-confirm" className="text-sm font-semibold">Type it again</label>
-          <input id="pw-confirm" type={type} className="input" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+          <label htmlFor="pw-confirm" className="text-sm font-semibold">
+            Type it again
+          </label>
+          <input
+            id="pw-confirm"
+            type={type}
+            className="input"
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            autoComplete="new-password"
+          />
         </div>
       </div>
-      {error && <p role="alert" className="rounded-[8px] bg-over px-3 py-2 text-sm text-over-fg">{error}</p>}
+      {error && (
+        <p role="alert" className="rounded-[8px] bg-over px-3 py-2 text-sm text-over-fg">
+          {error}
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <button type="button" onClick={() => setShow((s) => !s)} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink">
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+        >
           {show ? <EyeOff size={15} /> : <Eye size={15} />} {show ? 'Hide passwords' : 'Show passwords'}
         </button>
-        <button className="btn-cta" disabled={busy}>{busy ? 'Saving…' : hasPassword ? 'Change password' : 'Set password'}</button>
+        <button className="btn-cta" disabled={busy}>
+          {busy ? 'Saving…' : hasPassword ? 'Change password' : 'Set password'}
+        </button>
       </div>
-      {hasPassword && <p className="text-xs text-muted">Changing it logs you out on your other phones and computers. You stay logged in here.</p>}
+      {hasPassword && (
+        <p className="text-xs text-muted">Changing it logs you out on your other phones and computers. You stay logged in here.</p>
+      )}
     </form>
   );
 }
@@ -189,8 +250,8 @@ function LogoutEverywhere({ sessions }: { sessions: number }) {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted">
-        You’re logged in on <b className="text-ink">{sessions}</b> {sessions === 1 ? 'device' : 'devices'} (including this one). If you used a shared or lab computer, log out
-        everywhere.
+        You’re logged in on <b className="text-ink">{sessions}</b> {sessions === 1 ? 'device' : 'devices'} (including this one). If you used
+        a shared or lab computer, log out everywhere.
       </p>
       {sure ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -204,7 +265,9 @@ function LogoutEverywhere({ sessions }: { sessions: number }) {
           >
             Yes, log out everywhere
           </button>
-          <button className="btn-ghost" onClick={() => setSure(false)}>Cancel</button>
+          <button className="btn-ghost" onClick={() => setSure(false)}>
+            Cancel
+          </button>
         </div>
       ) : (
         <button className="btn-ghost self-start" onClick={() => setSure(true)}>

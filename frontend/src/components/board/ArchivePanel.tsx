@@ -15,7 +15,10 @@ export function ArchivePanel({ board, canEdit, onClose }: { board: Board; canEdi
 
   return createPortal(
     <div className="fixed inset-0 z-40 bg-[#1E1D1A]/20" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="absolute inset-y-0 right-0 flex w-[min(380px,100vw)] flex-col border-l border-line bg-surface shadow-pop" aria-label="Archived cards">
+      <aside
+        className="absolute inset-y-0 right-0 flex w-[min(380px,100vw)] flex-col border-l border-line bg-surface shadow-pop"
+        aria-label="Archived cards"
+      >
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="flex items-center gap-2 text-lg font-bold">
             <Archive size={18} className="text-muted" /> Archive
@@ -26,7 +29,9 @@ export function ArchivePanel({ board, canEdit, onClose }: { board: Board; canEdi
           </button>
         </div>
         {archived.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-muted">No archived cards. When someone archives a card it waits here, and anyone who can edit the board can restore it.</p>
+          <p className="px-5 py-6 text-sm text-muted">
+            No archived cards. When someone archives a card it waits here, and anyone who can edit the board can restore it.
+          </p>
         ) : (
           <ul className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-4">
             {archived.map((c) => {
@@ -35,10 +40,14 @@ export function ArchivePanel({ board, canEdit, onClose }: { board: Board; canEdi
                 <li key={c.id} className="flex flex-col gap-2 rounded-card border border-line bg-bg p-3">
                   {c.labels.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {c.labels.map((l) => <LabelChip key={l} id={l} />)}
+                      {c.labels.map((l) => (
+                        <LabelChip key={l} id={l} />
+                      ))}
                     </div>
                   )}
-                  <Link to={`/b/${board.id}/c/${c.id}`} className="text-sm font-medium hover:underline">{c.title}</Link>
+                  <Link to={`/b/${board.id}/c/${c.id}`} className="text-sm font-medium hover:underline">
+                    {c.title}
+                  </Link>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs text-muted">{from ? `Was in ${from}` : 'Its list was deleted'}</span>
                     {canEdit && (

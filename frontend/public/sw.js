@@ -1,12 +1,4 @@
-/*
- * Crewboard service worker.
- *
- * Why: the free server sleeps when nobody uses it and takes 30-60 s to wake. While it sleeps it can't
- * even send the page, so visitors saw a blank screen. This keeps a copy of the app on the device:
- *   - pages: try the network for 3 s, then open the saved copy (which shows "Waking up the server…")
- *   - /assets/*: hashed files, served from the saved copy, downloaded once
- *   - /api and /socket.io: never touched (always live)
- */
+/* Crewboard service worker. */
 const SHELL = 'crewboard-shell-v1';
 const ASSETS = 'crewboard-assets-v1';
 const NETWORK_WAIT_MS = 3000;

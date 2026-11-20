@@ -35,7 +35,6 @@ export function createAppServer() {
     app.use('/assets', express.static(path.join(FRONTEND_DIST, 'assets'), { immutable: true, maxAge: '1y' }));
     app.use(express.static(FRONTEND_DIST, { index: false }));
     // Any other page (/boards, /b/123…) is handled by React Router.
-    // __APP_URL__ in index.html becomes the live address, so shared links get a correct preview card.
     const html = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8');
     app.get(/^\/(?!api\/|socket\.io\/).*/, (req, res) => {
       res.set('Cache-Control', 'no-cache');

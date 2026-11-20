@@ -30,13 +30,21 @@ export default function Landing() {
           <Logo />
           <div className="hidden items-center gap-6 text-sm md:flex">
             {links.map(([l, h]) => (
-              <a key={h} href={h} className="text-muted underline-offset-4 hover:text-ink hover:underline">{l}</a>
+              <a key={h} href={h} className="text-muted underline-offset-4 hover:text-ink hover:underline">
+                {l}
+              </a>
             ))}
           </div>
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle />
-            {!session && <Link to="/login" className="btn-quiet hidden sm:inline-flex">Log in</Link>}
-            <Link to={startHref} className="btn-cta hidden sm:inline-flex">{session ? 'Open your boards' : 'Start a board'}</Link>
+            {!session && (
+              <Link to="/login" className="btn-quiet hidden sm:inline-flex">
+                Log in
+              </Link>
+            )}
+            <Link to={startHref} className="btn-cta hidden sm:inline-flex">
+              {session ? 'Open your boards' : 'Start a board'}
+            </Link>
             <button className="btn-quiet h-9 w-9 p-0 md:hidden" onClick={() => setMenu((m) => !m)} aria-label="Menu" aria-expanded={menu}>
               {menu ? <X size={20} /> : <Menu size={20} />}
             </button>
@@ -45,11 +53,19 @@ export default function Landing() {
         {menu && (
           <div className={clsx(wrap, 'flex flex-col gap-1 pb-4 md:hidden')}>
             {links.map(([l, h]) => (
-              <a key={h} href={h} onClick={() => setMenu(false)} className="rounded-md px-2 py-2 hover:bg-column">{l}</a>
+              <a key={h} href={h} onClick={() => setMenu(false)} className="rounded-md px-2 py-2 hover:bg-column">
+                {l}
+              </a>
             ))}
             <div className="mt-2 flex gap-2">
-              {!session && <Link to="/login" className="btn-ghost flex-1">Log in</Link>}
-              <Link to={startHref} className="btn-cta flex-1">Start a board</Link>
+              {!session && (
+                <Link to="/login" className="btn-ghost flex-1">
+                  Log in
+                </Link>
+              )}
+              <Link to={startHref} className="btn-cta flex-1">
+                Start a board
+              </Link>
             </div>
           </div>
         )}
@@ -62,8 +78,7 @@ export default function Landing() {
           <h1 className="font-wide text-[clamp(2.8rem,8.5vw,6.6rem)] font-black leading-[0.98] tracking-[-0.035em] sm:leading-[0.9]">
             Who’s doing{' '}
             <span className="whitespace-nowrap">
-              the{' '}
-              {/* Highlighter stroke through the middle of the word, so it never covers the line above */}
+              the {/* Highlighter stroke through the middle of the word, so it never covers the line above */}
               <mark className="bg-transparent bg-[linear-gradient(transparent_22%,rgb(var(--accent))_22%,rgb(var(--accent))_90%,transparent_90%)] px-[0.08em] text-on-accent [box-decoration-break:clone]">
                 slides?
               </mark>
@@ -77,7 +92,10 @@ export default function Landing() {
             <Link to={startHref} className="btn-cta px-5 py-3 text-[15px]">
               Start a board, it’s free <ArrowRight size={17} />
             </Link>
-            <a href="#try" className="font-semibold underline decoration-accent decoration-[3px] underline-offset-[6px] hover:decoration-ink">
+            <a
+              href="#try"
+              className="font-semibold underline decoration-accent decoration-[3px] underline-offset-[6px] hover:decoration-ink"
+            >
               or drag some cards first
             </a>
           </div>
@@ -107,7 +125,8 @@ export default function Landing() {
               <div className="flex items-center justify-between">
                 <span className="rounded bg-column px-1.5 py-px font-mono text-xs text-muted">Due Fri</span>
                 <span className="flex items-center gap-2 text-sm">
-                  Sara <span className="grid h-6 w-6 place-items-center rounded-full bg-[#A8574A] text-[10px] font-semibold text-white">SR</span>
+                  Sara{' '}
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-[#A8574A] text-[10px] font-semibold text-white">SR</span>
                 </span>
               </div>
               <span className="border-t border-line pt-2 font-mono text-[11px] text-muted">Assigned on Monday · in Doing</span>
@@ -125,8 +144,8 @@ export default function Landing() {
           <div className="grid gap-4 md:grid-cols-[1fr_1fr] md:items-end">
             <h2 className={h2}>How a six-week group project usually goes</h2>
             <p className="max-w-[46ch] text-muted md:justify-self-end">
-              The same project twice: once run from a group chat, once from a board. The work is the same. What changes is how much you
-              have to remember.
+              The same project twice: once run from a group chat, once from a board. The work is the same. What changes is how much you have
+              to remember.
             </p>
           </div>
 
@@ -156,7 +175,14 @@ export default function Landing() {
                   <th className="py-4 pr-4 align-top font-semibold">On Crewboard</th>
                   {WEEKS.map((w, i) => (
                     <td key={i} className="py-4 pr-4 align-top">
-                      <span className={clsx('inline-block rounded-card border px-3 py-2', i === WEEKS.length - 1 ? 'border-ink bg-accent text-on-accent' : 'border-line bg-surface')}>{w.board}</span>
+                      <span
+                        className={clsx(
+                          'inline-block rounded-card border px-3 py-2',
+                          i === WEEKS.length - 1 ? 'border-ink bg-accent text-on-accent' : 'border-line bg-surface',
+                        )}
+                      >
+                        {w.board}
+                      </span>
                     </td>
                   ))}
                 </tr>
@@ -171,11 +197,18 @@ export default function Landing() {
         <div className="flex flex-col gap-5">
           <h2 className={h2}>This board works. Drag a card to Done.</h2>
           <p className="text-muted">
-            It’s the same board you get after signing up, minus the saving. Cards turn amber the day before they’re due and red when they’re late.
+            It’s the same board you get after signing up, minus the saving. Cards turn amber the day before they’re due and red when they’re
+            late.
           </p>
           <ul className="flex flex-col gap-2 text-sm">
-            {['Drag with a mouse, or press and hold with a finger', 'Use Tab, Space and the arrow keys', 'Reorder inside a list or move between lists'].map((t) => (
-              <li key={t} className="flex items-start gap-2"><Check size={16} className="mt-0.5 shrink-0 text-success" strokeWidth={3} /> {t}</li>
+            {[
+              'Drag with a mouse, or press and hold with a finger',
+              'Use Tab, Space and the arrow keys',
+              'Reorder inside a list or move between lists',
+            ].map((t) => (
+              <li key={t} className="flex items-start gap-2">
+                <Check size={16} className="mt-0.5 shrink-0 text-success" strokeWidth={3} /> {t}
+              </li>
             ))}
           </ul>
         </div>
@@ -187,15 +220,35 @@ export default function Landing() {
         <div className={clsx(wrap, 'grid items-center gap-12 py-24 md:grid-cols-2')}>
           <div className="relative mx-auto w-full max-w-[380px]">
             <div className="flex flex-col gap-3 rounded-card border border-ink bg-surface p-5 shadow-hard">
-              <div className="flex items-center gap-2"><Num n={1} /><LabelChip id="research" /><LabelChip id="urgent" /></div>
-              <div className="flex items-start gap-2"><Num n={2} /><span className="text-lg font-semibold leading-snug">Find 8 sources for the literature review</span></div>
+              <div className="flex items-center gap-2">
+                <Num n={1} />
+                <LabelChip id="research" />
+                <LabelChip id="urgent" />
+              </div>
+              <div className="flex items-start gap-2">
+                <Num n={2} />
+                <span className="text-lg font-semibold leading-snug">Find 8 sources for the literature review</span>
+              </div>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="flex items-center gap-2"><Num n={3} /><span className="rounded bg-soon px-1.5 py-0.5 font-mono text-xs text-soon-fg">Due tomorrow</span></span>
-                <span className="flex items-center gap-2"><Num n={4} /><span className="inline-flex items-center gap-1 font-mono text-xs text-muted"><MessageSquare size={13} /> 3</span></span>
-                <span className="ml-auto flex items-center gap-2"><Num n={5} />
+                <span className="flex items-center gap-2">
+                  <Num n={3} />
+                  <span className="rounded bg-soon px-1.5 py-0.5 font-mono text-xs text-soon-fg">Due tomorrow</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <Num n={4} />
+                  <span className="inline-flex items-center gap-1 font-mono text-xs text-muted">
+                    <MessageSquare size={13} /> 3
+                  </span>
+                </span>
+                <span className="ml-auto flex items-center gap-2">
+                  <Num n={5} />
                   <span className="flex -space-x-1.5">
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-[#4F6C86] text-[10px] font-semibold text-white ring-2 ring-surface">AK</span>
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-[10px] font-semibold text-surface ring-2 ring-surface">You</span>
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-[#4F6C86] text-[10px] font-semibold text-white ring-2 ring-surface">
+                      AK
+                    </span>
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-ink text-[10px] font-semibold text-surface ring-2 ring-surface">
+                      You
+                    </span>
                   </span>
                 </span>
               </div>
@@ -213,7 +266,9 @@ export default function Landing() {
               ].map(([t, d], i) => (
                 <li key={t} className="flex gap-3">
                   <Num n={i + 1} />
-                  <span><b className="font-semibold">{t}.</b> <span className="text-muted">{d}</span></span>
+                  <span>
+                    <b className="font-semibold">{t}.</b> <span className="text-muted">{d}</span>
+                  </span>
                 </li>
               ))}
             </ol>
@@ -226,7 +281,8 @@ export default function Landing() {
         <div className="grid gap-4 md:grid-cols-2 md:items-end">
           <h2 className={h2}>Sara drags it on her laptop. It moves on yours.</h2>
           <p className="max-w-[46ch] text-muted md:justify-self-end">
-            Changes reach everyone on the board in about a second. No refreshing, no “did you see my message?”. The activity log keeps a record of who did what.
+            Changes reach everyone on the board in about a second. No refreshing, no “did you see my message?”. The activity log keeps a
+            record of who did what.
           </p>
         </div>
         <div className="grid gap-5 md:grid-cols-2">
@@ -237,7 +293,11 @@ export default function Landing() {
             <figure key={s.who} className="flex flex-col overflow-hidden rounded-modal border border-line bg-surface">
               <figcaption className="flex items-center justify-between border-b border-line bg-column px-4 py-2 font-mono text-xs text-muted">
                 {s.who}
-                {i === 1 && <span className="flex items-center gap-1.5 text-success"><span className="h-1.5 w-1.5 rounded-full bg-success" /> live</span>}
+                {i === 1 && (
+                  <span className="flex items-center gap-1.5 text-success">
+                    <span className="h-1.5 w-1.5 rounded-full bg-success" /> live
+                  </span>
+                )}
               </figcaption>
               <div className="grid grid-cols-2 gap-2.5 p-4">
                 <div className="rounded-col bg-column p-2.5">
@@ -246,10 +306,22 @@ export default function Landing() {
                 </div>
                 <div className="rounded-col bg-column p-2.5">
                   <div className="px-1 pb-2 text-xs font-semibold">Done</div>
-                  <div className={clsx('rounded-card border p-2.5 text-sm', i === 1 ? 'border-ink bg-accent-soft' : 'border-ink bg-surface')}>Presentation slides</div>
+                  <div
+                    className={clsx('rounded-card border p-2.5 text-sm', i === 1 ? 'border-ink bg-accent-soft' : 'border-ink bg-surface')}
+                  >
+                    Presentation slides
+                  </div>
                 </div>
               </div>
-              <div className="border-t border-line px-4 py-2.5 text-sm text-muted">{i === 0 ? <>Sara <b className="text-ink">{s.note}</b></> : s.note}</div>
+              <div className="border-t border-line px-4 py-2.5 text-sm text-muted">
+                {i === 0 ? (
+                  <>
+                    Sara <b className="text-ink">{s.note}</b>
+                  </>
+                ) : (
+                  s.note
+                )}
+              </div>
             </figure>
           ))}
         </div>
@@ -260,20 +332,35 @@ export default function Landing() {
         <div className={clsx(wrap, 'flex flex-col gap-10 py-24')}>
           <div className="grid gap-4 md:grid-cols-2 md:items-end">
             <h2 className={clsx(h2, 'text-surface')}>Four roles. Your mentor gets the one that can’t break anything.</h2>
-            <p className="max-w-[46ch] text-surface/70 md:justify-self-end">Boards are private to the people you invite. Pick a role for each person when you invite them, and change it later.</p>
+            <p className="max-w-[46ch] text-surface/70 md:justify-self-end">
+              Boards are private to the people you invite. Pick a role for each person when you invite them, and change it later.
+            </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {ROLES.map((r) => (
               <div key={r.name} className="flex flex-col rounded-modal bg-surface text-ink">
-                <div className="flex justify-center pt-3"><span className="h-2 w-12 rounded-full bg-column" aria-hidden="true" /></div>
+                <div className="flex justify-center pt-3">
+                  <span className="h-2 w-12 rounded-full bg-column" aria-hidden="true" />
+                </div>
                 <div className="flex flex-col gap-1 px-5 pb-4 pt-4">
-                  <span className={clsx('self-start rounded px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider', r.name === 'Viewer' ? 'bg-accent text-on-accent' : 'bg-column text-muted')}>{r.name}</span>
+                  <span
+                    className={clsx(
+                      'self-start rounded px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider',
+                      r.name === 'Viewer' ? 'bg-accent text-on-accent' : 'bg-column text-muted',
+                    )}
+                  >
+                    {r.name}
+                  </span>
                   <span className="pt-2 font-display text-xl font-bold leading-tight">{r.who}</span>
                 </div>
                 <ul className="mt-auto flex flex-col gap-1.5 border-t border-dashed border-line px-5 py-4 text-sm">
                   {r.can.map(([ok, t]) => (
                     <li key={t} className={clsx('flex items-start gap-2', !ok && 'text-muted')}>
-                      {ok ? <Check size={15} className="mt-0.5 shrink-0 text-success" strokeWidth={3} /> : <Minus size={15} className="mt-0.5 shrink-0" />}
+                      {ok ? (
+                        <Check size={15} className="mt-0.5 shrink-0 text-success" strokeWidth={3} />
+                      ) : (
+                        <Minus size={15} className="mt-0.5 shrink-0" />
+                      )}
                       {t}
                     </li>
                   ))}
@@ -313,9 +400,15 @@ export default function Landing() {
         <div className={clsx(wrap, 'flex flex-col gap-4 py-8 text-sm text-muted sm:flex-row sm:items-center sm:justify-between')}>
           <Logo />
           <div className="flex flex-wrap gap-5">
-            <a href="#try" className="hover:text-ink">Try it</a>
-            <a href="#faq" className="hover:text-ink">FAQ</a>
-            <Link to="/login" className="hover:text-ink">Log in</Link>
+            <a href="#try" className="hover:text-ink">
+              Try it
+            </a>
+            <a href="#faq" className="hover:text-ink">
+              FAQ
+            </a>
+            <Link to="/login" className="hover:text-ink">
+              Log in
+            </Link>
           </div>
           <span>© {new Date().getFullYear()} Crewboard</span>
         </div>
@@ -325,7 +418,9 @@ export default function Landing() {
 }
 
 function Num({ n }: { n: number }) {
-  return <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ink font-mono text-[10px] font-medium text-surface">{n}</span>;
+  return (
+    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-ink font-mono text-[10px] font-medium text-surface">{n}</span>
+  );
 }
 
 const WEEKS = [
@@ -338,17 +433,55 @@ const WEEKS = [
 ];
 
 const ROLES: { name: string; who: string; can: [boolean, string][] }[] = [
-  { name: 'Owner', who: 'Whoever made the board', can: [[true, 'Everything'], [true, 'Delete the board'], [true, 'Remove anyone from the board']] },
-  { name: 'Admin', who: 'The team lead', can: [[true, 'Edit, move, comment'], [true, 'Invite people, change roles'], [false, 'Delete the board']] },
-  { name: 'Member', who: 'Everyone doing the work', can: [[true, 'Edit, move, comment'], [false, 'Invite people'], [false, 'Change roles']] },
-  { name: 'Viewer', who: 'Your teacher or mentor', can: [[true, 'See every card and the activity log'], [false, 'Edit or comment'], [false, 'Invite people']] },
+  {
+    name: 'Owner',
+    who: 'Whoever made the board',
+    can: [
+      [true, 'Everything'],
+      [true, 'Delete the board'],
+      [true, 'Remove anyone from the board'],
+    ],
+  },
+  {
+    name: 'Admin',
+    who: 'The team lead',
+    can: [
+      [true, 'Edit, move, comment'],
+      [true, 'Invite people, change roles'],
+      [false, 'Delete the board'],
+    ],
+  },
+  {
+    name: 'Member',
+    who: 'Everyone doing the work',
+    can: [
+      [true, 'Edit, move, comment'],
+      [false, 'Invite people'],
+      [false, 'Change roles'],
+    ],
+  },
+  {
+    name: 'Viewer',
+    who: 'Your teacher or mentor',
+    can: [
+      [true, 'See every card and the activity log'],
+      [false, 'Edit or comment'],
+      [false, 'Invite people'],
+    ],
+  },
 ];
 
 const FAQ: [string, string][] = [
   ['Is it free?', 'Yes. Boards, cards and teammates are free.'],
   ['Can my teacher see our progress?', 'Invite them as a Viewer. They see every card and the activity log, and can’t change anything.'],
   ['Does it work on my phone?', 'Yes. The board scrolls sideways and you drag cards with your finger.'],
-  ['What if two of us move the same card?', 'Each change is saved in order and shows up for everyone straight away. If a save fails, the card goes back and you get a message.'],
-  ['Can I undo a mistake?', 'Archived cards stay in the board’s Archive, where you can restore them. The activity log shows who moved, added, assigned or archived each card.'],
+  [
+    'What if two of us move the same card?',
+    'Each change is saved in order and shows up for everyone straight away. If a save fails, the card goes back and you get a message.',
+  ],
+  [
+    'Can I undo a mistake?',
+    'Archived cards stay in the board’s Archive, where you can restore them. The activity log shows who moved, added, assigned or archived each card.',
+  ],
   ['Do my teammates need an account?', 'Yes, a free one. Send them an invite link and they land on your board after signing up.'],
 ];

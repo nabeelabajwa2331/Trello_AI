@@ -36,7 +36,9 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
   }, [title]);
-  useEffect(() => { if (!editingDesc) setDesc(card?.description ?? ''); }, [card?.description, editingDesc]);
+  useEffect(() => {
+    if (!editingDesc) setDesc(card?.description ?? '');
+  }, [card?.description, editingDesc]);
 
   if (!card) {
     return (
@@ -80,7 +82,12 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
               rows={1}
               onChange={(e) => setTitle(e.target.value.replace(/\n/g, ''))}
               onBlur={saveTitle}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLTextAreaElement).blur();
+                }
+              }}
               className="block w-full resize-none overflow-hidden rounded-md bg-transparent px-1 font-display text-lg font-bold leading-snug focus:bg-bg focus:outline-none sm:text-xl"
               aria-label="Card title"
               data-autofocus
@@ -104,12 +111,20 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
             <div className="flex flex-wrap gap-x-6 gap-y-3">
               {card.assignees.length > 0 && (
                 <Meta label="Members">
-                  <div className="flex flex-wrap gap-1">{card.assignees.map((a) => <Avatar key={a} userId={a} size="md" />)}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {card.assignees.map((a) => (
+                      <Avatar key={a} userId={a} size="md" />
+                    ))}
+                  </div>
                 </Meta>
               )}
               {card.labels.length > 0 && (
                 <Meta label="Labels">
-                  <div className="flex flex-wrap gap-1">{card.labels.map((l) => <LabelChip key={l} id={l} className="!py-1 !text-[11px]" />)}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {card.labels.map((l) => (
+                      <LabelChip key={l} id={l} className="!py-1 !text-[11px]" />
+                    ))}
+                  </div>
                 </Meta>
               )}
               {card.due && (
@@ -124,16 +139,51 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
             <h3 className="text-sm font-bold">Description</h3>
             {editingDesc ? (
               <div className="flex flex-col gap-2">
-                <textarea id="card-desc" autoFocus rows={5} className="input" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Add details, links, or what “done” means for this task…" />
+                <textarea
+                  id="card-desc"
+                  autoFocus
+                  rows={5}
+                  className="input"
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  placeholder="Add details, links, or what “done” means for this task…"
+                />
                 <div className="flex gap-2">
-                  <button className="btn-primary px-3 py-1.5" onClick={() => { update(board.id, card.id, { description: desc.trim() }); setEditingDesc(false); toast('Saved'); }}>Save</button>
-                  <button className="btn-quiet" onClick={() => { setDesc(card.description); setEditingDesc(false); }}>Cancel</button>
+                  <button
+                    className="btn-primary px-3 py-1.5"
+                    onClick={() => {
+                      update(board.id, card.id, { description: desc.trim() });
+                      setEditingDesc(false);
+                      toast('Saved');
+                    }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    className="btn-quiet"
+                    onClick={() => {
+                      setDesc(card.description);
+                      setEditingDesc(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             ) : card.description ? (
-              <p className={clsx('whitespace-pre-wrap rounded-md px-1 text-[14px]', edit && 'cursor-text hover:bg-column')} onClick={() => edit && setEditingDesc(true)}>{card.description}</p>
+              <p
+                className={clsx('whitespace-pre-wrap rounded-md px-1 text-[14px]', edit && 'cursor-text hover:bg-column')}
+                onClick={() => edit && setEditingDesc(true)}
+              >
+                {card.description}
+              </p>
             ) : edit ? (
-              <button className="rounded-md bg-column px-3 py-3 text-left text-sm text-muted hover:bg-line/60" onClick={() => setEditingDesc(true)}>Add a more detailed description…</button>
+              <button
+                className="rounded-md bg-column px-3 py-3 text-left text-sm text-muted hover:bg-line/60"
+                onClick={() => setEditingDesc(true)}
+              >
+                Add a more detailed description…
+              </button>
             ) : (
               <p className="text-sm text-muted">No description.</p>
             )}
@@ -145,36 +195,73 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
         {edit && (
           <aside className="flex flex-col gap-1.5">
             <span className="eyebrow mb-1">Add to card</span>
-            <Popover className="w-64" trigger={({ toggle }) => <SideButton icon={Users} onClick={toggle}>Members</SideButton>}>
+            <Popover
+              className="w-64"
+              trigger={({ toggle }) => (
+                <SideButton icon={Users} onClick={toggle}>
+                  Members
+                </SideButton>
+              )}
+            >
               {() => (
                 <div className="flex flex-col">
                   <span className="px-2.5 py-1.5 text-xs font-semibold text-muted">Board members</span>
                   {members.map((m) => (
-                    <button key={m.userId} onClick={() => toggleMember(m.userId)} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-column">
+                    <button
+                      key={m.userId}
+                      onClick={() => toggleMember(m.userId)}
+                      className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-column"
+                    >
                       <Avatar userId={m.userId} />
-                      <span className="flex-1 truncate">{users[m.userId]?.name}{m.userId === me && ' (you)'}</span>
+                      <span className="flex-1 truncate">
+                        {users[m.userId]?.name}
+                        {m.userId === me && ' (you)'}
+                      </span>
                       {card.assignees.includes(m.userId) && <Check size={15} className="text-success" />}
                     </button>
                   ))}
                 </div>
               )}
             </Popover>
-            <Popover className="w-56" trigger={({ toggle }) => <SideButton icon={Tag} onClick={toggle}>Labels</SideButton>}>
+            <Popover
+              className="w-56"
+              trigger={({ toggle }) => (
+                <SideButton icon={Tag} onClick={toggle}>
+                  Labels
+                </SideButton>
+              )}
+            >
               {() => (
                 <div className="flex flex-col gap-1 p-1">
                   {LABEL_IDS.map((l) => (
-                    <button key={l} onClick={() => toggleLabel(l)} className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-column" aria-pressed={card.labels.includes(l)}>
-                      <span className={clsx('flex-1 rounded px-2 py-1.5 text-left text-xs font-semibold', LABELS[l].className)}>{LABELS[l].name}</span>
+                    <button
+                      key={l}
+                      onClick={() => toggleLabel(l)}
+                      className="flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-column"
+                      aria-pressed={card.labels.includes(l)}
+                    >
+                      <span className={clsx('flex-1 rounded px-2 py-1.5 text-left text-xs font-semibold', LABELS[l].className)}>
+                        {LABELS[l].name}
+                      </span>
                       <span className="w-4">{card.labels.includes(l) && <Check size={15} />}</span>
                     </button>
                   ))}
                 </div>
               )}
             </Popover>
-            <Popover className="w-64" trigger={({ toggle }) => <SideButton icon={Calendar} onClick={toggle}>Due date</SideButton>}>
+            <Popover
+              className="w-64"
+              trigger={({ toggle }) => (
+                <SideButton icon={Calendar} onClick={toggle}>
+                  Due date
+                </SideButton>
+              )}
+            >
               {(close) => (
                 <div className="flex flex-col gap-2 p-2">
-                  <label htmlFor="due-input" className="text-xs font-semibold text-muted">Due date</label>
+                  <label htmlFor="due-input" className="text-xs font-semibold text-muted">
+                    Due date
+                  </label>
                   <input
                     id="due-input"
                     type="date"
@@ -182,11 +269,22 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
                     value={card.due ?? ''}
                     onChange={(e) => {
                       const v = e.target.value || null;
-                      update(board.id, card.id, { due: v }, v ? `set “${card.title}” due ${v}` : `removed the due date from “${card.title}”`);
+                      update(
+                        board.id,
+                        card.id,
+                        { due: v },
+                        v ? `set “${card.title}” due ${v}` : `removed the due date from “${card.title}”`,
+                      );
                     }}
                   />
                   {card.due && (
-                    <button className="btn-quiet justify-start text-danger" onClick={() => { update(board.id, card.id, { due: null }); close(); }}>
+                    <button
+                      className="btn-quiet justify-start text-danger"
+                      onClick={() => {
+                        update(board.id, card.id, { due: null });
+                        close();
+                      }}
+                    >
                       Remove due date
                     </button>
                   )}
@@ -196,14 +294,25 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
 
             <span className="eyebrow mb-1 mt-4">Actions</span>
             {!card.archived && (
-              <Popover className="w-56" trigger={({ toggle }) => <SideButton icon={ArrowRightLeft} onClick={toggle}>Move</SideButton>}>
+              <Popover
+                className="w-56"
+                trigger={({ toggle }) => (
+                  <SideButton icon={ArrowRightLeft} onClick={toggle}>
+                    Move
+                  </SideButton>
+                )}
+              >
                 {(close) => (
                   <div className="flex flex-col">
                     {board.listOrder.map((lid) => (
                       <button
                         key={lid}
                         disabled={lid === listId}
-                        onClick={() => { move(board.id, card.id, lid); close(); toast(`Moved to ${board.lists[lid].title}`); }}
+                        onClick={() => {
+                          move(board.id, card.id, lid);
+                          close();
+                          toast(`Moved to ${board.lists[lid].title}`);
+                        }}
                         className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-column disabled:opacity-50"
                       >
                         {board.lists[lid].title}
@@ -215,14 +324,25 @@ export function CardModal({ board, cardId, role, onClose }: { board: Board; card
               </Popover>
             )}
             {card.archived ? (
-              <SideButton icon={Archive} onClick={() => { restore(board.id, card.id); toast('Card restored'); }}>Restore</SideButton>
+              <SideButton
+                icon={Archive}
+                onClick={() => {
+                  restore(board.id, card.id);
+                  toast('Card restored');
+                }}
+              >
+                Restore
+              </SideButton>
             ) : (
               <SideButton
                 icon={Archive}
                 onClick={() => {
                   archive(board.id, card.id);
                   onClose();
-                  toast(`Archived “${card.title}”`, { action: { label: 'Undo', onClick: () => restore(board.id, card.id) }, duration: 6000 });
+                  toast(`Archived “${card.title}”`, {
+                    action: { label: 'Undo', onClick: () => restore(board.id, card.id) },
+                    duration: 6000,
+                  });
                 }}
               >
                 Archive
@@ -246,7 +366,10 @@ function Meta({ label, children }: { label: string; children: React.ReactNode })
 
 function SideButton({ icon: Icon, children, onClick }: { icon: typeof Users; children: React.ReactNode; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex w-full items-center gap-2 rounded-md bg-column px-3 py-2 text-left text-sm font-medium hover:bg-line/70">
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2 rounded-md bg-column px-3 py-2 text-left text-sm font-medium hover:bg-line/70"
+    >
       <Icon size={15} className="text-muted" /> {children}
     </button>
   );
@@ -307,20 +430,49 @@ function Comments({ board, cardId, canComment }: { board: Board; cardId: string;
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
                 if (suggestions.length) {
-                  if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx((i) => (i + 1) % suggestions.length); return; }
-                  if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx((i) => (i - 1 + suggestions.length) % suggestions.length); return; }
-                  if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pick(suggestions[mentionIdx].name); return; }
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setMentionIdx((i) => (i + 1) % suggestions.length);
+                    return;
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setMentionIdx((i) => (i - 1 + suggestions.length) % suggestions.length);
+                    return;
+                  }
+                  if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    pick(suggestions[mentionIdx].name);
+                    return;
+                  }
                 }
-                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); post(); }
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault();
+                  post();
+                }
               }}
               placeholder="Write a comment… type @ to mention someone"
               className="input resize-y"
             />
             {suggestions.length > 0 && (
-              <ul role="listbox" className="absolute left-12 top-[70px] z-10 w-60 rounded-[10px] border border-line bg-surface p-1 shadow-pop">
+              <ul
+                role="listbox"
+                className="absolute left-12 top-[70px] z-10 w-60 rounded-[10px] border border-line bg-surface p-1 shadow-pop"
+              >
                 {suggestions.map((u, i) => (
                   <li key={u.id}>
-                    <button role="option" aria-selected={i === mentionIdx} onMouseDown={(e) => { e.preventDefault(); pick(u.name); }} className={clsx('flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm', i === mentionIdx ? 'bg-column' : 'hover:bg-column')}>
+                    <button
+                      role="option"
+                      aria-selected={i === mentionIdx}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pick(u.name);
+                      }}
+                      className={clsx(
+                        'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm',
+                        i === mentionIdx ? 'bg-column' : 'hover:bg-column',
+                      )}
+                    >
                       <Avatar userId={u.id} /> {u.name}
                     </button>
                   </li>
@@ -328,7 +480,9 @@ function Comments({ board, cardId, canComment }: { board: Board; cardId: string;
               </ul>
             )}
             <div className="flex items-center gap-3">
-              <button className="btn-primary px-3 py-1.5" onClick={post} disabled={!text.trim()}>Comment</button>
+              <button className="btn-primary px-3 py-1.5" onClick={post} disabled={!text.trim()}>
+                Comment
+              </button>
               <span className="text-[11px] text-muted">Ctrl + Enter to post</span>
             </div>
           </div>
@@ -341,14 +495,27 @@ function Comments({ board, cardId, canComment }: { board: Board; cardId: string;
             <div className="min-w-0 flex-1">
               <div className="text-sm">
                 <b>{users[c.userId]?.name ?? 'Former member'}</b>{' '}
-                <span className="text-xs text-muted">{ago(c.createdAt)}{c.edited && ' (edited)'}</span>
+                <span className="text-xs text-muted">
+                  {ago(c.createdAt)}
+                  {c.edited && ' (edited)'}
+                </span>
               </div>
               {editing === c.id ? (
                 <div className="mt-1 flex flex-col gap-2">
                   <textarea className="input" rows={2} value={editText} onChange={(e) => setEditText(e.target.value)} autoFocus />
                   <div className="flex gap-2">
-                    <button className="btn-primary px-3 py-1.5" onClick={() => { if (editText.trim()) editComment(board.id, cardId, c.id, editText.trim()); setEditing(null); }}>Save</button>
-                    <button className="btn-quiet" onClick={() => setEditing(null)}>Cancel</button>
+                    <button
+                      className="btn-primary px-3 py-1.5"
+                      onClick={() => {
+                        if (editText.trim()) editComment(board.id, cardId, c.id, editText.trim());
+                        setEditing(null);
+                      }}
+                    >
+                      Save
+                    </button>
+                    <button className="btn-quiet" onClick={() => setEditing(null)}>
+                      Cancel
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -358,8 +525,21 @@ function Comments({ board, cardId, canComment }: { board: Board; cardId: string;
               )}
               {c.userId === me && editing !== c.id && (
                 <div className="mt-1 flex gap-3 text-xs text-muted">
-                  <button className="hover:text-ink hover:underline" onClick={() => { setEditing(c.id); setEditText(c.text); }}>Edit</button>
-                  <button className="inline-flex items-center gap-1 hover:text-danger hover:underline" onClick={() => deleteComment(board.id, cardId, c.id)}><Trash2 size={11} /> Delete</button>
+                  <button
+                    className="hover:text-ink hover:underline"
+                    onClick={() => {
+                      setEditing(c.id);
+                      setEditText(c.text);
+                    }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-1 hover:text-danger hover:underline"
+                    onClick={() => deleteComment(board.id, cardId, c.id)}
+                  >
+                    <Trash2 size={11} /> Delete
+                  </button>
                 </div>
               )}
             </div>
@@ -377,7 +557,9 @@ function Mentions({ text }: { text: string }) {
     <>
       {parts.map((p, i) =>
         p.startsWith('@') ? (
-          <span key={i} className="rounded bg-accent-soft px-1 font-semibold">{p}</span>
+          <span key={i} className="rounded bg-accent-soft px-1 font-semibold">
+            {p}
+          </span>
         ) : (
           <span key={i}>{p}</span>
         ),

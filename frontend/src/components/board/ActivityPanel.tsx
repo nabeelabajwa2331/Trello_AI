@@ -32,9 +32,21 @@ type Filter = 'all' | 'cards' | 'comments' | 'people';
 
 const KINDS: { kind: Kind; test: RegExp; icon: LucideIcon; tone: string; filter: Exclude<Filter, 'all'> }[] = [
   { kind: 'move', test: /^moved “/, icon: ArrowRightLeft, tone: 'bg-accent text-on-accent', filter: 'cards' },
-  { kind: 'comment', test: /^commented on/, icon: MessageSquare, tone: 'bg-[#DCE3EA] text-[#3D5A75] dark:bg-[#26313B] dark:text-[#A9C1D8]', filter: 'comments' },
+  {
+    kind: 'comment',
+    test: /^commented on/,
+    icon: MessageSquare,
+    tone: 'bg-[#DCE3EA] text-[#3D5A75] dark:bg-[#26313B] dark:text-[#A9C1D8]',
+    filter: 'comments',
+  },
   { kind: 'add', test: /^added “/, icon: Plus, tone: 'bg-done text-done-fg', filter: 'cards' },
-  { kind: 'assign', test: /^assigned /, icon: UserPlus, tone: 'bg-[#E6DDE8] text-[#6A4C73] dark:bg-[#352B38] dark:text-[#D2B9D9]', filter: 'cards' },
+  {
+    kind: 'assign',
+    test: /^assigned /,
+    icon: UserPlus,
+    tone: 'bg-[#E6DDE8] text-[#6A4C73] dark:bg-[#352B38] dark:text-[#D2B9D9]',
+    filter: 'cards',
+  },
   // checked before "unassign", because "removed the due date from …" also starts with "removed"
   { kind: 'due', test: /due \d{4}-|due date/, icon: CalendarClock, tone: 'bg-soon text-soon-fg', filter: 'cards' },
   { kind: 'unassign', test: /^removed .+ from “/, icon: UserMinus, tone: 'bg-column text-muted', filter: 'cards' },
@@ -42,11 +54,18 @@ const KINDS: { kind: Kind; test: RegExp; icon: LucideIcon; tone: string; filter:
   { kind: 'restore', test: /^restored /, icon: RotateCcw, tone: 'bg-done text-done-fg', filter: 'cards' },
   { kind: 'rename', test: /^renamed /, icon: Pencil, tone: 'bg-column text-muted', filter: 'cards' },
   { kind: 'list', test: /the list|reordered the lists/, icon: Columns3, tone: 'bg-column text-muted', filter: 'cards' },
-  { kind: 'people', test: /^(invited|joined|changed .+ role|removed .+ from the board|left the board|revoked|created an invite link|turned off the invite link)/, icon: Users, tone: 'bg-column text-ink', filter: 'people' },
+  {
+    kind: 'people',
+    test: /^(invited|joined|changed .+ role|removed .+ from the board|left the board|revoked|created an invite link|turned off the invite link)/,
+    icon: Users,
+    tone: 'bg-column text-ink',
+    filter: 'people',
+  },
   { kind: 'created', test: /^created this board/, icon: Sparkles, tone: 'bg-accent text-on-accent', filter: 'people' },
 ];
 
-const kindOf = (text: string) => KINDS.find((k) => k.test.test(text)) ?? { kind: 'rename' as Kind, icon: History, tone: 'bg-column text-muted', filter: 'cards' as const };
+const kindOf = (text: string) =>
+  KINDS.find((k) => k.test.test(text)) ?? { kind: 'rename' as Kind, icon: History, tone: 'bg-column text-muted', filter: 'cards' as const };
 
 /* ------------------------------------------------------------------ grouping */
 
@@ -86,7 +105,10 @@ function ActivityText({ a, board }: { a: Activity; board: Board }) {
   const card = a.cardId ? board.cards[a.cardId] : undefined;
   const cardLink = (title: string) =>
     card && !card.archived ? (
-      <Link to={`/b/${board.id}/c/${card.id}`} className="font-semibold text-ink underline decoration-line decoration-2 underline-offset-2 hover:decoration-accent">
+      <Link
+        to={`/b/${board.id}/c/${card.id}`}
+        className="font-semibold text-ink underline decoration-line decoration-2 underline-offset-2 hover:decoration-accent"
+      >
         {title}
       </Link>
     ) : (
@@ -105,11 +127,7 @@ function ActivityText({ a, board }: { a: Activity; board: Board }) {
     );
   }
   const parts = a.text.split(/“([^”]+)”/g);
-  return (
-    <>
-      {parts.map((p, i) => (i % 2 === 1 ? <span key={i}>{cardLink(p)}</span> : <span key={i}>{p}</span>))}
-    </>
-  );
+  return <>{parts.map((p, i) => (i % 2 === 1 ? <span key={i}>{cardLink(p)}</span> : <span key={i}>{p}</span>))}</>;
 }
 
 /* ------------------------------------------------------------------ panel */
@@ -144,7 +162,10 @@ export function ActivityPanel({ board, onClose }: { board: Board; onClose: () =>
 
   return createPortal(
     <div className="fixed inset-0 z-40 bg-[#1E1D1A]/20" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="absolute inset-y-0 right-0 flex w-[min(420px,100vw)] flex-col border-l border-ink bg-surface shadow-pop" aria-label="Board activity">
+      <aside
+        className="absolute inset-y-0 right-0 flex w-[min(420px,100vw)] flex-col border-l border-ink bg-surface shadow-pop"
+        aria-label="Board activity"
+      >
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-line px-5 pb-3 pt-4">
           <div className="min-w-0">
@@ -183,7 +204,13 @@ export function ActivityPanel({ board, onClose }: { board: Board; onClose: () =>
             ))}
           </div>
           <label className="ml-auto flex cursor-pointer items-center gap-1.5 text-xs font-medium text-muted">
-            <input type="checkbox" id="activity-mine" checked={mine} onChange={(e) => setMine(e.target.checked)} className="h-3.5 w-3.5 accent-[#2A2926]" />
+            <input
+              type="checkbox"
+              id="activity-mine"
+              checked={mine}
+              onChange={(e) => setMine(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[#2A2926]"
+            />
             Only me
           </label>
         </div>
@@ -197,7 +224,9 @@ export function ActivityPanel({ board, onClose }: { board: Board; onClose: () =>
               </span>
               <p className="font-semibold">{board.activity.length ? 'Nothing matches this filter' : 'No activity yet'}</p>
               <p className="max-w-[30ch] text-sm text-muted">
-                {board.activity.length ? 'Try another tab, or turn off “Only me”.' : 'When people add, move or discuss cards, it shows up here.'}
+                {board.activity.length
+                  ? 'Try another tab, or turn off “Only me”.'
+                  : 'When people add, move or discuss cards, it shows up here.'}
               </p>
             </div>
           ) : (
@@ -211,7 +240,7 @@ export function ActivityPanel({ board, onClose }: { board: Board; onClose: () =>
                   <span className="absolute bottom-3 left-[35px] top-3 w-px bg-line" aria-hidden="true" />
                   {day.entries.map((e) => {
                     const first = e.items[0];
-                    const who = e.userId === me ? 'You' : users[e.userId]?.name ?? 'Former member';
+                    const who = e.userId === me ? 'You' : (users[e.userId]?.name ?? 'Former member');
                     return (
                       <li key={first.id} className="relative flex gap-3 pb-4 last:pb-0">
                         <span className="relative z-[1] rounded-full ring-4 ring-surface">
@@ -220,7 +249,11 @@ export function ActivityPanel({ board, onClose }: { board: Board; onClose: () =>
                         <div className="min-w-0 flex-1 pt-0.5">
                           <div className="flex items-baseline justify-between gap-2">
                             <span className="truncate text-sm font-semibold">{who}</span>
-                            <time dateTime={first.createdAt} title={format(parseISO(first.createdAt), 'PPpp')} className="shrink-0 font-mono text-[11px] text-muted">
+                            <time
+                              dateTime={first.createdAt}
+                              title={format(parseISO(first.createdAt), 'PPpp')}
+                              className="shrink-0 font-mono text-[11px] text-muted"
+                            >
                               {day.label === 'Today' ? ago(first.createdAt) : format(parseISO(first.createdAt), 'h:mm a')}
                             </time>
                           </div>
@@ -230,8 +263,14 @@ export function ActivityPanel({ board, onClose }: { board: Board; onClose: () =>
                               const k = kindOf(a.text);
                               const Icon = k.icon;
                               return (
-                                <li key={a.id} className="flex items-start gap-2 rounded-[8px] border border-line bg-bg px-2.5 py-2 text-[13px] leading-snug text-muted">
-                                  <span className={clsx('mt-px grid h-5 w-5 shrink-0 place-items-center rounded', k.tone)} aria-hidden="true">
+                                <li
+                                  key={a.id}
+                                  className="flex items-start gap-2 rounded-[8px] border border-line bg-bg px-2.5 py-2 text-[13px] leading-snug text-muted"
+                                >
+                                  <span
+                                    className={clsx('mt-px grid h-5 w-5 shrink-0 place-items-center rounded', k.tone)}
+                                    aria-hidden="true"
+                                  >
                                     <Icon size={12} strokeWidth={2.4} />
                                   </span>
                                   <span className="min-w-0 break-words">

@@ -13,5 +13,3 @@ export const LABELS: Record<LabelId, { name: string; className: string; dot: str
 };
 
 export const LABEL_IDS = Object.keys(LABELS) as LabelId[];
-
-export const COVERS = ['#2A2926', '#F4C430', '#8A8378', '#5E7D57', '#A8574A', '#4F6C86', '#C9B99A'];

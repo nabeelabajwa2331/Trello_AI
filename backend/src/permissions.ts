@@ -2,8 +2,6 @@ import { prisma } from './db.js';
 import { forbidden, notFound } from './http.js';
 
 export type Role = 'owner' | 'admin' | 'member' | 'viewer';
-export const ROLES: Role[] = ['owner', 'admin', 'member', 'viewer'];
-
 export type Action = 'view' | 'comment' | 'editCards' | 'editLists' | 'invite' | 'manageMembers' | 'editBoard' | 'deleteBoard';
 
 /** Same matrix as frontend/src/lib/permissions.ts. The server is the one that actually enforces it. */

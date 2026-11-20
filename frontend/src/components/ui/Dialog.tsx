@@ -33,9 +33,15 @@ export function Dialog({ open, onClose, title, children, width = 'max-w-md', hid
       if (e.key === 'Tab' && panel.current) {
         const f = panel.current.querySelectorAll<HTMLElement>('a,button,input,textarea,select,[tabindex]:not([tabindex="-1"])');
         if (!f.length) return;
-        const first = f[0], last = f[f.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        const first = f[0],
+          last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     document.addEventListener('keydown', onKey);
@@ -51,8 +57,17 @@ export function Dialog({ open, onClose, title, children, width = 'max-w-md', hid
 
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#1E1D1A]/55 p-4 pt-[8vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={panel} role="dialog" aria-modal="true" aria-label={title} className={clsx('relative w-full rounded-modal border border-line bg-surface shadow-pop', width)}>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-[#1E1D1A]/55 p-4 pt-[8vh]"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={clsx('relative w-full rounded-modal border border-line bg-surface shadow-pop', width)}
+      >
         {!hideTitle && (
           <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-4">
             <h2 className="text-lg font-bold">{title}</h2>

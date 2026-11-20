@@ -14,6 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { AUTO_SCROLL, hapticPickUp, useBoardSensors } from '../lib/dnd';
+import { celebrateCard } from '../lib/celebrate';
 import { Activity, Archive, Eye, Filter, LogOut, MoreHorizontal, Plus, Share2, Star, Trash2, X } from 'lucide-react';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
 import { AppHeader } from '../components/AppHeader';
@@ -107,8 +108,20 @@ export default function BoardPage() {
     return Object.fromEntries(board.listOrder.map((l) => [l, board.lists[l].cardIds.filter(pass)]));
   }, [board, fMine, fLabels, fDue, me]);
 
-  if (!board) return (<><AppHeader /><NotFound message="This board was deleted, or you are no longer a member." /></>);
-  if (!role) return (<><AppHeader /><NotFound message="You don't have access to this board. Ask the owner for an invite." /></>);
+  if (!board)
+    return (
+      <>
+        <AppHeader />
+        <NotFound message="This board was deleted, or you are no longer a member." />
+      </>
+    );
+  if (!role)
+    return (
+      <>
+        <AppHeader />
+        <NotFound message="You don't have access to this board. Ask the owner for an invite." />
+      </>
+    );
 
   const canEdit = can(role, 'editCards');
   const archivedCount = Object.values(board.cards).filter((c) => c.archived).length;
@@ -164,12 +177,10 @@ export default function BoardPage() {
           if (newI >= 0 && oldI !== newI) next = { ...next, [c]: arrayMove(next[c], oldI, newI) };
         }
       }
-      // Optimistic update. With a real API: call it here and roll back with a toast on failure.
-      try {
-        applyLayout(board.id, next, String(a.id), active.fromList);
-      } catch {
-        toast.error(`Couldn't move the card. It's back where it was.`);
-      }
+      applyLayout(board.id, next, String(a.id), active.fromList);
+      // A little party when a card lands in a Done list from somewhere else.
+      const to = Object.keys(next).find((l) => next[l].includes(String(a.id)));
+      if (to && to !== active.fromList && board.lists[to]?.isDone) celebrateCard(String(a.id));
     }
     lastDragEnd.current = Date.now();
     setDragLayout(null);
@@ -202,37 +213,68 @@ export default function BoardPage() {
           <span className="h-3 w-3 shrink-0 rounded" style={{ background: board.cover }} aria-hidden="true" />
           {renaming ? (
             <div className="min-w-0 flex-1 sm:max-w-sm">
-              <InlineInput initial={board.title} onSave={(v) => { if (v && v !== board.title) renameBoard(board.id, v); setRenaming(false); }} onCancel={() => setRenaming(false)} className="text-base" />
+              <InlineInput
+                initial={board.title}
+                onSave={(v) => {
+                  if (v && v !== board.title) renameBoard(board.id, v);
+                  setRenaming(false);
+                }}
+                onCancel={() => setRenaming(false)}
+                className="text-base"
+              />
             </div>
           ) : (
             <h1
-              className={clsx('min-w-0 truncate rounded-md px-1.5 py-0.5 text-base font-bold sm:text-lg', can(role, 'editBoard') && 'cursor-text hover:bg-column')}
+              className={clsx(
+                'min-w-0 truncate rounded-md px-1.5 py-0.5 text-base font-bold sm:text-lg',
+                can(role, 'editBoard') && 'cursor-text hover:bg-column',
+              )}
               onClick={() => can(role, 'editBoard') && setRenaming(true)}
               title={board.title}
             >
               {board.title}
             </h1>
           )}
-          <button className={clsx('btn-quiet h-8 w-8 shrink-0 p-0', board.starred && 'text-warning')} onClick={() => toggleStar(board.id)} aria-label={board.starred ? 'Unstar board' : 'Star board'} aria-pressed={board.starred}>
+          <button
+            className={clsx('btn-quiet h-8 w-8 shrink-0 p-0', board.starred && 'text-warning')}
+            onClick={() => toggleStar(board.id)}
+            aria-label={board.starred ? 'Unstar board' : 'Star board'}
+            aria-pressed={board.starred}
+          >
             <Star size={17} fill={board.starred ? 'currentColor' : 'none'} />
           </button>
           {role === 'viewer' && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-column px-2.5 py-1 text-xs font-semibold text-muted"><Eye size={13} /> View only</span>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-column px-2.5 py-1 text-xs font-semibold text-muted">
+              <Eye size={13} /> View only
+            </span>
           )}
         </div>
 
         <div className="flex items-center gap-1.5 sm:ml-auto">
           <span className="mr-auto flex items-center gap-2.5 sm:mr-2" title="People on this board. A green dot means they have it open.">
-            <span className="sm:hidden"><AvatarStack ids={presence} max={3} online={online ?? [me]} /></span>
-            <span className="hidden sm:inline-flex"><AvatarStack ids={presence} max={5} online={online ?? [me]} /></span>
+            <span className="sm:hidden">
+              <AvatarStack ids={presence} max={3} online={online ?? [me]} />
+            </span>
+            <span className="hidden sm:inline-flex">
+              <AvatarStack ids={presence} max={5} online={online ?? [me]} />
+            </span>
             <span className="hidden items-center gap-1.5 text-xs text-muted sm:flex">
               <span className="h-2 w-2 rounded-full bg-success" /> {(online ?? [me]).length} here
             </span>
           </span>
           <FilterMenu
-            mine={fMine} setMine={setFMine} labels={fLabels} setLabels={setFLabels} due={fDue} setDue={setFDue}
+            mine={fMine}
+            setMine={setFMine}
+            labels={fLabels}
+            setLabels={setFLabels}
+            due={fDue}
+            setDue={setFDue}
             active={filtering}
-            clear={() => { setFMine(false); setFLabels([]); setFDue('any'); }}
+            clear={() => {
+              setFMine(false);
+              setFLabels([]);
+              setFDue('any');
+            }}
           />
           <button className="btn-quiet gap-1.5 px-2.5" onClick={() => setActivity(true)}>
             <Activity size={16} /> <span className="hidden md:inline">Activity</span>
@@ -251,17 +293,34 @@ export default function BoardPage() {
           >
             {(close) => (
               <>
-                <MenuItem onClick={() => { close(); setArchive(true); }}>
+                <MenuItem
+                  onClick={() => {
+                    close();
+                    setArchive(true);
+                  }}
+                >
                   <Archive size={15} /> Archived cards
                   {archivedCount > 0 && <span className="ml-auto font-mono text-xs text-muted">{archivedCount}</span>}
                 </MenuItem>
                 <div className="my-1 border-t border-line" />
                 {role === 'owner' ? (
-                  <MenuItem danger onClick={() => { close(); setConfirmExit('delete'); }}>
+                  <MenuItem
+                    danger
+                    onClick={() => {
+                      close();
+                      setConfirmExit('delete');
+                    }}
+                  >
                     <Trash2 size={15} /> Delete board
                   </MenuItem>
                 ) : (
-                  <MenuItem danger onClick={() => { close(); setConfirmExit('leave'); }}>
+                  <MenuItem
+                    danger
+                    onClick={() => {
+                      close();
+                      setConfirmExit('leave');
+                    }}
+                  >
                     <LogOut size={15} /> Leave board
                   </MenuItem>
                 )}
@@ -274,15 +333,32 @@ export default function BoardPage() {
       {filtering && (
         <div className="flex items-center gap-2 border-b border-line bg-accent-soft/70 px-4 py-2 text-sm sm:px-6">
           <Filter size={14} /> Showing filtered cards. Dragging is paused while a filter is on.
-          <button className="ml-auto font-semibold underline-offset-2 hover:underline" onClick={() => { setFMine(false); setFLabels([]); setFDue('any'); }}>Clear filters</button>
+          <button
+            className="ml-auto font-semibold underline-offset-2 hover:underline"
+            onClick={() => {
+              setFMine(false);
+              setFLabels([]);
+              setFDue('any');
+            }}
+          >
+            Clear filters
+          </button>
         </div>
       )}
 
       {/* ---------- Lists ---------- */}
-      <DndContext sensors={sensors} autoScroll={AUTO_SCROLL} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={onDragCancel}
+      <DndContext
+        sensors={sensors}
+        autoScroll={AUTO_SCROLL}
+        collisionDetection={collision}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
         accessibility={{
           announcements: {
-            onDragStart: ({ active: a }) => `Picked up ${a.data.current?.type === 'list' ? 'list' : 'card'} ${labelOf(board, String(a.id))}.`,
+            onDragStart: ({ active: a }) =>
+              `Picked up ${a.data.current?.type === 'list' ? 'list' : 'card'} ${labelOf(board, String(a.id))}.`,
             onDragOver: ({ over }) => (over ? `Over ${labelOf(board, String(over.id))}.` : 'Not over a list.'),
             onDragEnd: ({ over }) => (over ? `Dropped on ${labelOf(board, String(over.id))}.` : 'Dropped.'),
             onDragCancel: () => 'Move cancelled.',
@@ -293,7 +369,15 @@ export default function BoardPage() {
           <SortableContext items={listOrder} strategy={horizontalListSortingStrategy}>
             {listOrder.map((lid) =>
               board.lists[lid] ? (
-                <BoardColumn key={lid} board={board} list={board.lists[lid]} cardIds={layout[lid] ?? []} canEdit={canEdit} canDrag={canDrag} onOpenCard={openCard} />
+                <BoardColumn
+                  key={lid}
+                  board={board}
+                  list={board.lists[lid]}
+                  cardIds={layout[lid] ?? []}
+                  canEdit={canEdit}
+                  canDrag={canDrag}
+                  onOpenCard={openCard}
+                />
               ) : null,
             )}
           </SortableContext>
@@ -302,11 +386,21 @@ export default function BoardPage() {
             <div className="w-[min(288px,82vw)] shrink-0">
               {addingList ? (
                 <div className="rounded-col bg-column p-2">
-                  <InlineInput initial="" onSave={(v) => { if (v) addList(board.id, v); setAddingList(false); }} onCancel={() => setAddingList(false)} />
+                  <InlineInput
+                    initial=""
+                    onSave={(v) => {
+                      if (v) addList(board.id, v);
+                      setAddingList(false);
+                    }}
+                    onCancel={() => setAddingList(false)}
+                  />
                   <p className="px-1 pt-1.5 text-[11px] text-muted">Enter to add, Esc to cancel</p>
                 </div>
               ) : (
-                <button className="flex w-full items-center gap-2 rounded-col border-2 border-dashed border-line px-3 py-2.5 text-sm font-semibold text-muted hover:border-ink hover:text-ink" onClick={() => setAddingList(true)}>
+                <button
+                  className="flex w-full items-center gap-2 rounded-col border-2 border-dashed border-line px-3 py-2.5 text-sm font-semibold text-muted hover:border-ink hover:text-ink"
+                  onClick={() => setAddingList(true)}
+                >
                   <Plus size={16} /> Add a list
                 </button>
               )}
@@ -316,9 +410,19 @@ export default function BoardPage() {
 
         <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(.2,.8,.2,1)' }}>
           {activeCard ? (
-            <div className="w-[min(272px,78vw)]"><CardView card={activeCard} done={false} overlay /></div>
+            <div className="w-[min(272px,78vw)]">
+              <CardView card={activeCard} done={false} overlay />
+            </div>
           ) : activeList ? (
-            <BoardColumn board={board} list={activeList} cardIds={visible[activeList.id] ?? []} canEdit={false} canDrag={false} onOpenCard={() => {}} overlay />
+            <BoardColumn
+              board={board}
+              list={activeList}
+              cardIds={visible[activeList.id] ?? []}
+              canEdit={false}
+              canDrag={false}
+              onOpenCard={() => {}}
+              overlay
+            />
           ) : null}
         </DragOverlay>
       </DndContext>
@@ -344,7 +448,17 @@ export default function BoardPage() {
 }
 
 /** Delete asks you to type the board name; leave is a plain confirmation. */
-function ExitDialog({ mode, boardTitle, onClose, onConfirm }: { mode: 'delete' | 'leave' | null; boardTitle: string; onClose: () => void; onConfirm: () => Promise<void> }) {
+function ExitDialog({
+  mode,
+  boardTitle,
+  onClose,
+  onConfirm,
+}: {
+  mode: 'delete' | 'leave' | null;
+  boardTitle: string;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -367,20 +481,34 @@ function ExitDialog({ mode, boardTitle, onClose, onConfirm }: { mode: 'delete' |
         {deleting ? (
           <>
             <p>
-              This permanently deletes <b>“{boardTitle}”</b> with all its lists, cards, comments and activity, for everyone on it. It can’t be undone.
+              This permanently deletes <b>“{boardTitle}”</b> with all its lists, cards, comments and activity, for everyone on it. It can’t
+              be undone.
             </p>
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="confirm-board-name" className="text-sm font-semibold">Type the board name to confirm</label>
-              <input id="confirm-board-name" data-autofocus className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={boardTitle} autoComplete="off" />
+              <label htmlFor="confirm-board-name" className="text-sm font-semibold">
+                Type the board name to confirm
+              </label>
+              <input
+                id="confirm-board-name"
+                data-autofocus
+                className="input"
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder={boardTitle}
+                autoComplete="off"
+              />
             </div>
           </>
         ) : (
           <p>
-            You’ll lose access to <b>“{boardTitle}”</b> and be removed from its cards. Someone who can invite people will have to add you again if you want back in.
+            You’ll lose access to <b>“{boardTitle}”</b> and be removed from its cards. Someone who can invite people will have to add you
+            again if you want back in.
           </p>
         )}
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            Cancel
+          </button>
           <button className="btn-danger" disabled={!ready || busy}>
             {busy ? 'One moment…' : deleting ? 'Delete board' : 'Leave board'}
           </button>
@@ -395,10 +523,14 @@ function labelOf(board: Board, id: string) {
 }
 
 function FilterMenu(props: {
-  mine: boolean; setMine: (v: boolean) => void;
-  labels: LabelId[]; setLabels: (v: LabelId[]) => void;
-  due: DueFilter; setDue: (v: DueFilter) => void;
-  active: boolean; clear: () => void;
+  mine: boolean;
+  setMine: (v: boolean) => void;
+  labels: LabelId[];
+  setLabels: (v: LabelId[]) => void;
+  due: DueFilter;
+  setDue: (v: DueFilter) => void;
+  active: boolean;
+  clear: () => void;
 }) {
   const count = (props.mine ? 1 : 0) + props.labels.length + (props.due !== 'any' ? 1 : 0);
   return (
@@ -415,14 +547,36 @@ function FilterMenu(props: {
       {() => (
         <div className="flex flex-col gap-3 p-2">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input type="checkbox" id="f-mine" checked={props.mine} onChange={(e) => props.setMine(e.target.checked)} className="h-4 w-4 accent-[#2A2926]" />
+            <input
+              type="checkbox"
+              id="f-mine"
+              checked={props.mine}
+              onChange={(e) => props.setMine(e.target.checked)}
+              className="h-4 w-4 accent-[#2A2926]"
+            />
             Only cards assigned to me
           </label>
           <div className="flex flex-col gap-1.5">
             <span className="label-text">Due date</span>
             <div className="flex flex-wrap gap-1.5">
-              {([['any', 'Any'], ['overdue', 'Overdue'], ['week', 'Next 7 days'], ['none', 'No date']] as [DueFilter, string][]).map(([v, l]) => (
-                <button key={v} onClick={() => props.setDue(v)} className={clsx('rounded-full border px-2.5 py-1 text-xs font-semibold', props.due === v ? 'border-ink bg-ink text-surface' : 'border-line hover:bg-column')}>{l}</button>
+              {(
+                [
+                  ['any', 'Any'],
+                  ['overdue', 'Overdue'],
+                  ['week', 'Next 7 days'],
+                  ['none', 'No date'],
+                ] as [DueFilter, string][]
+              ).map(([v, l]) => (
+                <button
+                  key={v}
+                  onClick={() => props.setDue(v)}
+                  className={clsx(
+                    'rounded-full border px-2.5 py-1 text-xs font-semibold',
+                    props.due === v ? 'border-ink bg-ink text-surface' : 'border-line hover:bg-column',
+                  )}
+                >
+                  {l}
+                </button>
               ))}
             </div>
           </div>
@@ -432,7 +586,15 @@ function FilterMenu(props: {
               {LABEL_IDS.map((l) => {
                 const on = props.labels.includes(l);
                 return (
-                  <button key={l} aria-pressed={on} onClick={() => props.setLabels(on ? props.labels.filter((x) => x !== l) : [...props.labels, l])} className={clsx('rounded-md ring-offset-1 ring-offset-surface', on ? 'ring-2 ring-ink' : 'opacity-70 hover:opacity-100')}>
+                  <button
+                    key={l}
+                    aria-pressed={on}
+                    onClick={() => props.setLabels(on ? props.labels.filter((x) => x !== l) : [...props.labels, l])}
+                    className={clsx(
+                      'rounded-md ring-offset-1 ring-offset-surface',
+                      on ? 'ring-2 ring-ink' : 'opacity-70 hover:opacity-100',
+                    )}
+                  >
                     <LabelChip id={l} />
                   </button>
                 );
@@ -440,7 +602,9 @@ function FilterMenu(props: {
             </div>
           </div>
           {props.active && (
-            <button className="btn-quiet justify-start gap-1.5 px-1 text-xs" onClick={props.clear}><X size={13} /> Clear all filters</button>
+            <button className="btn-quiet justify-start gap-1.5 px-1 text-xs" onClick={props.clear}>
+              <X size={13} /> Clear all filters
+            </button>
           )}
         </div>
       )}

@@ -23,15 +23,23 @@ const quote = (s: string) => `“${s}”`;
 
 /** Board snapshot as this person may see it: their starred flag, and invite details only if they can invite. */
 async function snapshotFor(boardId: string, userId: string) {
-  const [snap, me] = await Promise.all([boardSnapshot(boardId), prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } } })]);
+  const [snap, me] = await Promise.all([
+    boardSnapshot(boardId),
+    prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } } }),
+  ]);
   if (!snap || !me) throw notFound('This board');
   return { ...snap, board: { ...forRole(snap.board, me.role), starred: me.starred } };
 }
 
-/**
- * Every change goes through here: check the role, apply it, log it, push the new board to everyone, return it.
- */
-async function mutate(req: Request, boardId: string, action: Action, apply: () => Promise<string | void | null>, staticLog?: string, cardId?: string) {
+/** Every change goes through here: check the role, apply it, log it, push the new board to everyone, return it. */
+async function mutate(
+  req: Request,
+  boardId: string,
+  action: Action,
+  apply: () => Promise<string | void | null>,
+  staticLog?: string,
+  cardId?: string,
+) {
   await requireRole(boardId, req.userId, action);
   const dynamicLog = await apply();
   const text = (dynamicLog || staticLog) ?? null;
@@ -48,8 +56,22 @@ async function notify(userId: string, actorId: string, boardId: string, text: st
   notifyUser(userId, serializeNotification(n));
 }
 
-const serializeNotification = (n: { id: string; text: string; actorId: string; boardId: string; cardId: string | null; read: boolean; createdAt: Date }) => ({
-  id: n.id, text: n.text, actorId: n.actorId, boardId: n.boardId, cardId: n.cardId ?? undefined, read: n.read, createdAt: n.createdAt.toISOString(),
+const serializeNotification = (n: {
+  id: string;
+  text: string;
+  actorId: string;
+  boardId: string;
+  cardId: string | null;
+  read: boolean;
+  createdAt: Date;
+}) => ({
+  id: n.id,
+  text: n.text,
+  actorId: n.actorId,
+  boardId: n.boardId,
+  cardId: n.cardId ?? undefined,
+  read: n.read,
+  createdAt: n.createdAt.toISOString(),
 });
 
 async function cardOr404(cardId: string) {
@@ -107,25 +129,40 @@ api.get(
   handle(async (req, res) => {
     const me = await prisma.user.findUnique({ where: { id: req.userId } });
     if (!me) throw new HttpError(401, 'Log in to continue.');
-    const memberships = await prisma.boardMember.findMany({ where: { userId: req.userId }, include: { board: true }, orderBy: { board: { updatedAt: 'desc' } } });
+    const memberships = await prisma.boardMember.findMany({
+      where: { userId: req.userId },
+      include: { board: true },
+      orderBy: { board: { updatedAt: 'desc' } },
+    });
     const snaps = await Promise.all(memberships.map((m) => snapshotFor(m.boardId, req.userId)));
-    const incoming = await prisma.invite.findMany({ where: { email: me.email }, include: { board: true, invitedBy: true }, orderBy: { createdAt: 'desc' } });
+    const incoming = await prisma.invite.findMany({
+      where: { email: me.email },
+      include: { board: true, invitedBy: true },
+      orderBy: { createdAt: 'desc' },
+    });
     const notifications = await prisma.notification.findMany({ where: { userId: req.userId }, orderBy: { createdAt: 'desc' }, take: 50 });
 
     const users: Record<string, ReturnType<typeof publicUser>> = { [me.id]: publicUser(me) };
     for (const s of snaps) Object.assign(users, s.users);
     for (const i of incoming) users[i.invitedById] = publicUser(i.invitedBy);
-    for (const n of notifications) if (!users[n.actorId]) {
-      const a = await prisma.user.findUnique({ where: { id: n.actorId } });
-      if (a) users[a.id] = publicUser(a);
-    }
+    for (const n of notifications)
+      if (!users[n.actorId]) {
+        const a = await prisma.user.findUnique({ where: { id: n.actorId } });
+        if (a) users[a.id] = publicUser(a);
+      }
 
     res.json({
       me: { ...publicUser(me), isAdmin: isAdmin(me), adminPending: isPendingAdmin(me) },
       settings: { emailConfirmation: env.requireEmailConfirmation },
       users,
       boards: snaps.map((s) => s.board),
-      incoming: incoming.map((i) => ({ id: i.id, fromUserId: i.invitedById, role: i.role, boardTitle: i.board.title, boardCover: i.board.cover })),
+      incoming: incoming.map((i) => ({
+        id: i.id,
+        fromUserId: i.invitedById,
+        role: i.role,
+        boardTitle: i.board.title,
+        boardCover: i.board.cover,
+      })),
       notifications: notifications.map(serializeNotification),
     });
   }),
@@ -136,7 +173,13 @@ api.get(
 api.post(
   '/boards',
   handle(async (req, res) => {
-    const body = parse(z.object({ title: z.string().trim().min(1, 'Give the board a name.').max(60), template: z.enum(['blank', 'class', 'hackathon']).default('blank') }), req.body);
+    const body = parse(
+      z.object({
+        title: z.string().trim().min(1, 'Give the board a name.').max(60),
+        template: z.enum(['blank', 'class', 'hackathon']).default('blank'),
+      }),
+      req.body,
+    );
     const count = await prisma.boardMember.count({ where: { userId: req.userId } });
     const board = await prisma.board.create({
       data: {
@@ -150,7 +193,10 @@ api.post(
     for (const [i, l] of lists.entries()) {
       await prisma.list.create({
         data: {
-          boardId: board.id, title: l.title, position: (i + 1) * 1024, isDone: !!l.isDone,
+          boardId: board.id,
+          title: l.title,
+          position: (i + 1) * 1024,
+          isDone: !!l.isDone,
           cards: { create: l.cards.map((t, k) => ({ boardId: board.id, title: t, position: (k + 1) * 1024 })) },
         },
       });
@@ -173,7 +219,15 @@ api.patch(
   handle(async (req, res) => {
     const { title } = parse(z.object({ title: z.string().trim().min(1).max(60) }), req.body);
     const { boardId } = req.params;
-    res.json(await mutate(req, boardId, 'editBoard', async () => void (await prisma.board.update({ where: { id: boardId }, data: { title } })), `renamed the board to ${quote(title)}`));
+    res.json(
+      await mutate(
+        req,
+        boardId,
+        'editBoard',
+        async () => void (await prisma.board.update({ where: { id: boardId }, data: { title } })),
+        `renamed the board to ${quote(title)}`,
+      ),
+    );
   }),
 );
 
@@ -205,10 +259,16 @@ api.post(
     const { title } = parse(z.object({ title: z.string().trim().min(1).max(60) }), req.body);
     const { boardId } = req.params;
     res.json(
-      await mutate(req, boardId, 'editLists', async () => {
-        const last = await prisma.list.findFirst({ where: { boardId }, orderBy: { position: 'desc' } });
-        await prisma.list.create({ data: { boardId, title, position: (last?.position ?? 0) + 1024 } });
-      }, `added the list ${quote(title)}`),
+      await mutate(
+        req,
+        boardId,
+        'editLists',
+        async () => {
+          const last = await prisma.list.findFirst({ where: { boardId }, orderBy: { position: 'desc' } });
+          await prisma.list.create({ data: { boardId, title, position: (last?.position ?? 0) + 1024 } });
+        },
+        `added the list ${quote(title)}`,
+      ),
     );
   }),
 );
@@ -219,12 +279,19 @@ api.put(
     const { order } = parse(z.object({ order: z.array(id).max(100) }), req.body);
     const { boardId } = req.params;
     res.json(
-      await mutate(req, boardId, 'editLists', async () => {
-        const lists = await prisma.list.findMany({ where: { boardId }, select: { id: true } });
-        const ids = new Set(lists.map((l) => l.id));
-        if (order.length !== ids.size || !order.every((o) => ids.has(o))) throw new HttpError(409, 'The lists changed while you were dragging. Try again.');
-        await prisma.$transaction(order.map((lid, i) => prisma.list.update({ where: { id: lid }, data: { position: (i + 1) * 1024 } })));
-      }, 'reordered the lists'),
+      await mutate(
+        req,
+        boardId,
+        'editLists',
+        async () => {
+          const lists = await prisma.list.findMany({ where: { boardId }, select: { id: true } });
+          const ids = new Set(lists.map((l) => l.id));
+          if (order.length !== ids.size || !order.every((o) => ids.has(o)))
+            throw new HttpError(409, 'The lists changed while you were dragging. Try again.');
+          await prisma.$transaction(order.map((lid, i) => prisma.list.update({ where: { id: lid }, data: { position: (i + 1) * 1024 } })));
+        },
+        'reordered the lists',
+      ),
     );
   }),
 );
@@ -234,7 +301,15 @@ api.patch(
   handle(async (req, res) => {
     const { title } = parse(z.object({ title: z.string().trim().min(1).max(60) }), req.body);
     const list = await listOr404(req.params.listId);
-    res.json(await mutate(req, list.boardId, 'editLists', async () => void (await prisma.list.update({ where: { id: list.id }, data: { title } })), `renamed the list ${quote(list.title)} to ${quote(title)}`));
+    res.json(
+      await mutate(
+        req,
+        list.boardId,
+        'editLists',
+        async () => void (await prisma.list.update({ where: { id: list.id }, data: { title } })),
+        `renamed the list ${quote(list.title)} to ${quote(title)}`,
+      ),
+    );
   }),
 );
 
@@ -243,16 +318,26 @@ api.delete(
   handle(async (req, res) => {
     const list = await listOr404(req.params.listId);
     res.json(
-      await mutate(req, list.boardId, 'editLists', async () => {
-        const n = await prisma.card.count({ where: { listId: list.id, archived: false } });
-        if (n) throw new HttpError(409, 'Move or archive the cards in this list first, then delete it.');
-        // Archived cards would be deleted together with the list; move them so they stay in the Archive.
-        const other = await prisma.list.findFirst({ where: { boardId: list.boardId, NOT: { id: list.id } }, orderBy: { position: 'asc' } });
-        const archived = await prisma.card.count({ where: { listId: list.id, archived: true } });
-        if (archived && !other) throw new HttpError(409, "This is the board's last list and it still has archived cards. Add another list first.");
-        if (archived) await prisma.card.updateMany({ where: { listId: list.id, archived: true }, data: { listId: other!.id } });
-        await prisma.list.delete({ where: { id: list.id } });
-      }, `deleted the list ${quote(list.title)}`),
+      await mutate(
+        req,
+        list.boardId,
+        'editLists',
+        async () => {
+          const n = await prisma.card.count({ where: { listId: list.id, archived: false } });
+          if (n) throw new HttpError(409, 'Move or archive the cards in this list first, then delete it.');
+          // Archived cards would be deleted together with the list; move them so they stay in the Archive.
+          const other = await prisma.list.findFirst({
+            where: { boardId: list.boardId, NOT: { id: list.id } },
+            orderBy: { position: 'asc' },
+          });
+          const archived = await prisma.card.count({ where: { listId: list.id, archived: true } });
+          if (archived && !other)
+            throw new HttpError(409, "This is the board's last list and it still has archived cards. Add another list first.");
+          if (archived) await prisma.card.updateMany({ where: { listId: list.id, archived: true }, data: { listId: other!.id } });
+          await prisma.list.delete({ where: { id: list.id } });
+        },
+        `deleted the list ${quote(list.title)}`,
+      ),
     );
   }),
 );
@@ -283,7 +368,11 @@ api.patch(
         description: z.string().max(5000).optional(),
         labels: z.array(z.enum(LABELS)).max(8).optional(),
         assignees: z.array(id).max(20).optional(),
-        due: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a yyyy-mm-dd date.').nullable().optional(),
+        due: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a yyyy-mm-dd date.')
+          .nullable()
+          .optional(),
       }),
       req.body,
     );
@@ -296,15 +385,23 @@ api.patch(
         const logs: string[] = [];
         const name = body.title ?? card.title;
         if (body.title !== undefined && body.title !== card.title) logs.push(`renamed a card to ${quote(body.title)}`);
-        if (body.due !== undefined && body.due !== card.due) logs.push(body.due ? `set ${quote(name)} due ${body.due}` : `removed the due date from ${quote(name)}`);
+        if (body.due !== undefined && body.due !== card.due)
+          logs.push(body.due ? `set ${quote(name)} due ${body.due}` : `removed the due date from ${quote(name)}`);
 
         await prisma.card.update({
           where: { id: card.id },
-          data: { title: body.title, description: body.description, due: body.due, labels: body.labels ? JSON.stringify([...new Set(body.labels)]) : undefined },
+          data: {
+            title: body.title,
+            description: body.description,
+            due: body.due,
+            labels: body.labels ? JSON.stringify([...new Set(body.labels)]) : undefined,
+          },
         });
 
         if (body.assignees) {
-          const members = new Set((await prisma.boardMember.findMany({ where: { boardId: card.boardId, NOT: { role: 'viewer' } } })).map((m) => m.userId));
+          const members = new Set(
+            (await prisma.boardMember.findMany({ where: { boardId: card.boardId, NOT: { role: 'viewer' } } })).map((m) => m.userId),
+          );
           const next = [...new Set(body.assignees)].filter((u) => members.has(u));
           const prev = card.assignees.map((a) => a.userId);
           const added = next.filter((u) => !prev.includes(u));
@@ -337,11 +434,18 @@ api.post(
     const to = await listOr404(body.toListId);
     if (to.boardId !== card.boardId) throw new HttpError(400, 'Cards can only move within the same board.');
     res.json(
-      await mutate(req, card.boardId, 'editCards', async () => {
-        const position = await positionAt(to.id, body.index, card.id);
-        await prisma.card.update({ where: { id: card.id }, data: { listId: to.id, position } });
-        return to.id === card.listId ? null : `moved ${quote(card.title)} from ${card.list.title} to ${to.title}`;
-      }, undefined, card.id),
+      await mutate(
+        req,
+        card.boardId,
+        'editCards',
+        async () => {
+          const position = await positionAt(to.id, body.index, card.id);
+          await prisma.card.update({ where: { id: card.id }, data: { listId: to.id, position } });
+          return to.id === card.listId ? null : `moved ${quote(card.title)} from ${card.list.title} to ${to.title}`;
+        },
+        undefined,
+        card.id,
+      ),
     );
   }),
 );
@@ -350,7 +454,16 @@ api.post(
   '/cards/:cardId/archive',
   handle(async (req, res) => {
     const card = await cardOr404(req.params.cardId);
-    res.json(await mutate(req, card.boardId, 'editCards', async () => void (await prisma.card.update({ where: { id: card.id }, data: { archived: true } })), `archived ${quote(card.title)}`, card.id));
+    res.json(
+      await mutate(
+        req,
+        card.boardId,
+        'editCards',
+        async () => void (await prisma.card.update({ where: { id: card.id }, data: { archived: true } })),
+        `archived ${quote(card.title)}`,
+        card.id,
+      ),
+    );
   }),
 );
 
@@ -359,10 +472,17 @@ api.post(
   handle(async (req, res) => {
     const card = await cardOr404(req.params.cardId);
     res.json(
-      await mutate(req, card.boardId, 'editCards', async () => {
-        const position = await positionAt(card.listId, Number.MAX_SAFE_INTEGER, card.id);
-        await prisma.card.update({ where: { id: card.id }, data: { archived: false, position } });
-      }, `restored ${quote(card.title)}`, card.id),
+      await mutate(
+        req,
+        card.boardId,
+        'editCards',
+        async () => {
+          const position = await positionAt(card.listId, Number.MAX_SAFE_INTEGER, card.id);
+          await prisma.card.update({ where: { id: card.id }, data: { archived: false, position } });
+        },
+        `restored ${quote(card.title)}`,
+        card.id,
+      ),
     );
   }),
 );
@@ -375,10 +495,17 @@ api.post(
     const { text } = parse(z.object({ text: z.string().trim().min(1).max(4000) }), req.body);
     const card = await cardOr404(req.params.cardId);
     res.json(
-      await mutate(req, card.boardId, 'comment', async () => {
-        await prisma.comment.create({ data: { cardId: card.id, userId: req.userId, text } });
-        await notifyMentions(card.boardId, req.userId, text, card.id, card.title);
-      }, `commented on ${quote(card.title)}`, card.id),
+      await mutate(
+        req,
+        card.boardId,
+        'comment',
+        async () => {
+          await prisma.comment.create({ data: { cardId: card.id, userId: req.userId, text } });
+          await notifyMentions(card.boardId, req.userId, text, card.id, card.title);
+        },
+        `commented on ${quote(card.title)}`,
+        card.id,
+      ),
     );
   }),
 );
@@ -395,7 +522,14 @@ api.patch(
   handle(async (req, res) => {
     const { text } = parse(z.object({ text: z.string().trim().min(1).max(4000) }), req.body);
     const c = await ownComment(req.params.commentId, req.userId);
-    res.json(await mutate(req, c.card.boardId, 'comment', async () => void (await prisma.comment.update({ where: { id: c.id }, data: { text, edited: true } }))));
+    res.json(
+      await mutate(
+        req,
+        c.card.boardId,
+        'comment',
+        async () => void (await prisma.comment.update({ where: { id: c.id }, data: { text, edited: true } })),
+      ),
+    );
   }),
 );
 
@@ -412,21 +546,39 @@ api.delete(
 api.post(
   '/boards/:boardId/invites',
   handle(async (req, res) => {
-    const body = parse(z.object({ email: z.string().trim().toLowerCase().email('Enter a valid email address.'), role: roleSchema }), req.body);
+    const body = parse(
+      z.object({ email: z.string().trim().toLowerCase().email('Enter a valid email address.'), role: roleSchema }),
+      req.body,
+    );
     const { boardId } = req.params;
     res.json(
-      await mutate(req, boardId, 'invite', async () => {
-        const existing = await prisma.user.findUnique({ where: { email: body.email } });
-        if (existing && (await prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId: existing.id } } }))) throw new HttpError(409, 'That person is already on the board.');
-        if (await prisma.invite.findFirst({ where: { boardId, email: body.email } })) throw new HttpError(409, 'That person already has an invite.');
-        const inv = await prisma.invite.create({ data: { boardId, email: body.email, role: body.role, invitedById: req.userId }, include: { board: true, invitedBy: true } });
-        // If they already have an account, show the invite on their workspace right away.
-        if (existing) notifyUser(existing.id, { type: 'invite', invite: { id: inv.id, fromUserId: req.userId, role: inv.role, boardTitle: inv.board.title, boardCover: inv.board.cover } });
-        // Tell them by email too. People without an account land on signup with their email filled in.
-        const origin = appOrigin(req);
-        const link = existing ? `${origin}/boards` : `${origin}/signup?email=${encodeURIComponent(body.email)}`;
-        await sendQuietly({ to: body.email, ...inviteEmail(inv.invitedBy.name, inv.board.title, inv.role, link, !!existing) });
-      }, `invited ${body.email} as ${body.role}`),
+      await mutate(
+        req,
+        boardId,
+        'invite',
+        async () => {
+          const existing = await prisma.user.findUnique({ where: { email: body.email } });
+          if (existing && (await prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId: existing.id } } })))
+            throw new HttpError(409, 'That person is already on the board.');
+          if (await prisma.invite.findFirst({ where: { boardId, email: body.email } }))
+            throw new HttpError(409, 'That person already has an invite.');
+          const inv = await prisma.invite.create({
+            data: { boardId, email: body.email, role: body.role, invitedById: req.userId },
+            include: { board: true, invitedBy: true },
+          });
+          // If they already have an account, show the invite on their workspace right away.
+          if (existing)
+            notifyUser(existing.id, {
+              type: 'invite',
+              invite: { id: inv.id, fromUserId: req.userId, role: inv.role, boardTitle: inv.board.title, boardCover: inv.board.cover },
+            });
+          // Tell them by email too. People without an account land on signup with their email filled in.
+          const origin = appOrigin(req);
+          const link = existing ? `${origin}/boards` : `${origin}/signup?email=${encodeURIComponent(body.email)}`;
+          await sendQuietly({ to: body.email, ...inviteEmail(inv.invitedBy.name, inv.board.title, inv.role, link, !!existing) });
+        },
+        `invited ${body.email} as ${body.role}`,
+      ),
     );
   }),
 );
@@ -436,7 +588,15 @@ api.delete(
   handle(async (req, res) => {
     const inv = await prisma.invite.findUnique({ where: { id: req.params.inviteId } });
     if (!inv) throw notFound('This invite');
-    res.json(await mutate(req, inv.boardId, 'invite', async () => void (await prisma.invite.delete({ where: { id: inv.id } })), inv.email ? `revoked the invite for ${inv.email}` : 'turned off the invite link'));
+    res.json(
+      await mutate(
+        req,
+        inv.boardId,
+        'invite',
+        async () => void (await prisma.invite.delete({ where: { id: inv.id } })),
+        inv.email ? `revoked the invite for ${inv.email}` : 'turned off the invite link',
+      ),
+    );
   }),
 );
 
@@ -446,10 +606,24 @@ api.post(
     const { role } = parse(z.object({ role: roleSchema }), req.body);
     const { boardId } = req.params;
     res.json(
-      await mutate(req, boardId, 'invite', async () => {
-        await prisma.invite.deleteMany({ where: { boardId, token: { not: null } } });
-        await prisma.invite.create({ data: { boardId, role, invitedById: req.userId, token: crypto.randomBytes(18).toString('base64url'), expiresAt: new Date(Date.now() + 7 * 864e5) } });
-      }, `created an invite link for ${role}s`),
+      await mutate(
+        req,
+        boardId,
+        'invite',
+        async () => {
+          await prisma.invite.deleteMany({ where: { boardId, token: { not: null } } });
+          await prisma.invite.create({
+            data: {
+              boardId,
+              role,
+              invitedById: req.userId,
+              token: crypto.randomBytes(18).toString('base64url'),
+              expiresAt: new Date(Date.now() + 7 * 864e5),
+            },
+          });
+        },
+        `created an invite link for ${role}s`,
+      ),
     );
   }),
 );
@@ -468,7 +642,8 @@ api.post(
   '/join/:token',
   handle(async (req, res) => {
     const inv = await prisma.invite.findUnique({ where: { token: req.params.token } });
-    if (!inv || (inv.expiresAt && inv.expiresAt.getTime() < Date.now())) throw new HttpError(410, 'This invite link has expired or was turned off. Ask the board owner for a new one.');
+    if (!inv || (inv.expiresAt && inv.expiresAt.getTime() < Date.now()))
+      throw new HttpError(410, 'This invite link has expired or was turned off. Ask the board owner for a new one.');
     await joinBoard(req.userId, inv.boardId, inv.role);
     res.json(await snapshotFor(inv.boardId, req.userId));
   }),
@@ -481,7 +656,8 @@ api.post(
     const inv = await prisma.invite.findUnique({ where: { id: req.params.inviteId } });
     if (!inv || !me || inv.email !== me.email) throw notFound('This invite');
     // Email invites go to an address, so we need proof that this account really owns it.
-    if (env.requireEmailConfirmation && !me.emailVerifiedAt) throw forbidden(`Confirm your email first. We sent a link to ${me.email}; you can send it again from the banner at the top.`);
+    if (env.requireEmailConfirmation && !me.emailVerifiedAt)
+      throw forbidden(`Confirm your email first. We sent a link to ${me.email}; you can send it again from the banner at the top.`);
     await joinBoard(req.userId, inv.boardId, inv.role);
     await prisma.invite.delete({ where: { id: inv.id } });
     await broadcastBoard(inv.boardId, null);
@@ -510,7 +686,15 @@ api.patch(
     if (!target) throw notFound('That member');
     if (target.role === 'owner') throw forbidden("The owner's role can't be changed.");
     if (userId === req.userId) throw forbidden("You can't change your own role.");
-    res.json(await mutate(req, boardId, 'manageMembers', async () => void (await prisma.boardMember.update({ where: { boardId_userId: { boardId, userId } }, data: { role } })), `changed ${target.user.name}'s role to ${role}`));
+    res.json(
+      await mutate(
+        req,
+        boardId,
+        'manageMembers',
+        async () => void (await prisma.boardMember.update({ where: { boardId_userId: { boardId, userId } }, data: { role } })),
+        `changed ${target.user.name}'s role to ${role}`,
+      ),
+    );
   }),
 );
 
@@ -520,7 +704,10 @@ api.delete(
     const { boardId, userId } = req.params;
     const target = await prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } }, include: { user: true } });
     if (!target) throw notFound('That member');
-    if (target.role === 'owner') throw forbidden(userId === req.userId ? "Owners can't leave their own board. Delete the board instead." : "The owner can't be removed.");
+    if (target.role === 'owner')
+      throw forbidden(
+        userId === req.userId ? "Owners can't leave their own board. Delete the board instead." : "The owner can't be removed.",
+      );
     const leaving = userId === req.userId;
     const snap = await mutate(
       req,

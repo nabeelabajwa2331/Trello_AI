@@ -67,7 +67,9 @@ export default function Workspace() {
                 <p className="min-w-0 flex-1">
                   <b>{users[inv.fromUserId]?.name}</b> invited you to <b>{inv.boardTitle}</b> as {inv.role}.
                   {me?.emailVerified === false && confirmRequired && (
-                    <span className="mt-0.5 block text-sm text-muted">Confirm your email first (see the yellow banner at the top), then accept.</span>
+                    <span className="mt-0.5 block text-sm text-muted">
+                      Confirm your email first (see the yellow banner at the top), then accept.
+                    </span>
                   )}
                 </p>
                 <div className="flex gap-2">
@@ -94,7 +96,9 @@ export default function Workspace() {
             <Clock size={18} className="text-muted" /> Your cards due this week
           </h2>
           {myDue.length === 0 ? (
-            <p className="rounded-modal border border-dashed border-line p-5 text-muted">Nothing assigned to you is due in the next 7 days.</p>
+            <p className="rounded-modal border border-dashed border-line p-5 text-muted">
+              Nothing assigned to you is due in the next 7 days.
+            </p>
           ) : (
             <ul className="divide-y divide-line overflow-hidden rounded-modal border border-line bg-surface">
               {myDue.map((d) => (
@@ -139,7 +143,10 @@ function BoardGrid({ title, boards, onNew }: { title: string; boards: Board[]; o
             const done = b.listOrder.filter((l) => b.lists[l].isDone).reduce((n, l) => n + b.lists[l].cardIds.length, 0);
             const role = b.members.find((m) => m.userId === me)?.role ?? 'member';
             return (
-              <div key={b.id} className="group relative flex flex-col overflow-hidden rounded-modal border border-line bg-surface hover:border-ink">
+              <div
+                key={b.id}
+                className="group relative flex flex-col overflow-hidden rounded-modal border border-line bg-surface hover:border-ink"
+              >
                 <div className="h-16" style={{ background: b.cover }}>
                   <div className="flex h-full items-end gap-1.5 px-4 pb-0 opacity-40">
                     {[60, 35, 48].map((h, i) => (
@@ -156,14 +163,19 @@ function BoardGrid({ title, boards, onNew }: { title: string; boards: Board[]; o
                     <AvatarStack ids={b.members.map((m) => m.userId)} />
                     <span className="flex items-center gap-2">
                       <RoleBadge role={role} />
-                      <span className="font-mono">{done}/{cards} done</span>
+                      <span className="font-mono">
+                        {done}/{cards} done
+                      </span>
                     </span>
                   </div>
                   <span className="text-xs text-muted">Updated {ago(b.updatedAt)}</span>
                 </Link>
                 <button
                   onClick={() => toggleStar(b.id)}
-                  className={clsx('absolute right-3 top-[76px] z-10 grid h-8 w-8 place-items-center rounded-lg hover:bg-column', b.starred ? 'text-warning' : 'text-muted opacity-0 focus:opacity-100 group-hover:opacity-100')}
+                  className={clsx(
+                    'absolute right-3 top-[76px] z-10 grid h-8 w-8 place-items-center rounded-lg hover:bg-column',
+                    b.starred ? 'text-warning' : 'text-muted opacity-0 focus:opacity-100 group-hover:opacity-100',
+                  )}
                   aria-label={b.starred ? `Unstar ${b.title}` : `Star ${b.title}`}
                   aria-pressed={b.starred}
                 >
@@ -173,7 +185,10 @@ function BoardGrid({ title, boards, onNew }: { title: string; boards: Board[]; o
             );
           })}
           {onNew && (
-            <button onClick={onNew} className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-modal border-2 border-dashed border-line text-muted hover:border-ink hover:text-ink">
+            <button
+              onClick={onNew}
+              className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-modal border-2 border-dashed border-line text-muted hover:border-ink hover:text-ink"
+            >
               <Plus size={22} />
               <span className="font-semibold">Create a board</span>
               {boards.length === 0 && <span className="text-xs">Start blank or from a template</span>}
@@ -220,14 +235,35 @@ function NewBoardDialog({ open, onClose }: { open: boolean; onClose: () => void 
           <label htmlFor="board-title" className="text-sm font-semibold">
             Board name
           </label>
-          <input id="board-title" data-autofocus className="input" placeholder="CS-301 Final Project" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} />
+          <input
+            id="board-title"
+            data-autofocus
+            className="input"
+            placeholder="CS-301 Final Project"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={60}
+          />
           {error && <p className="text-xs font-medium text-danger">{error}</p>}
         </div>
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1.5 text-sm font-semibold">Start from</legend>
           {TEMPLATES.map((t) => (
-            <label key={t.id} className={clsx('flex cursor-pointer items-center gap-3 rounded-[10px] border p-3', template === t.id ? 'border-ink bg-column' : 'border-line hover:bg-column')}>
-              <input type="radio" name="template" value={t.id} checked={template === t.id} onChange={() => setTemplate(t.id)} className="accent-[#2A2926]" />
+            <label
+              key={t.id}
+              className={clsx(
+                'flex cursor-pointer items-center gap-3 rounded-[10px] border p-3',
+                template === t.id ? 'border-ink bg-column' : 'border-line hover:bg-column',
+              )}
+            >
+              <input
+                type="radio"
+                name="template"
+                value={t.id}
+                checked={template === t.id}
+                onChange={() => setTemplate(t.id)}
+                className="accent-[#2A2926]"
+              />
               <span className="flex flex-col">
                 <span className="font-semibold">{t.name}</span>
                 <span className="font-mono text-xs text-muted">{t.lists}</span>
@@ -239,7 +275,9 @@ function NewBoardDialog({ open, onClose }: { open: boolean; onClose: () => void 
           <button type="button" className="btn-ghost" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn-cta" disabled={busy}>{busy ? 'Creating…' : 'Create board'}</button>
+          <button className="btn-cta" disabled={busy}>
+            {busy ? 'Creating…' : 'Create board'}
+          </button>
         </div>
       </form>
     </Dialog>

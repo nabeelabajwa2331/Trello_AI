@@ -16,7 +16,7 @@ const transport = env.smtp.host
 export const mailProvider: 'brevo' | 'smtp' | 'none' = env.brevoKey ? 'brevo' : transport ? 'smtp' : 'none';
 export const mailEnabled = mailProvider !== 'none';
 
-export type Mail = { to: string; subject: string; text: string; html: string };
+type Mail = { to: string; subject: string; text: string; html: string };
 
 /** "Crewboard <me@gmail.com>" → { name, email } for Brevo. */
 function parseFrom(from: string) {
@@ -28,7 +28,13 @@ async function sendWithBrevo(m: Mail) {
   const r = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': env.brevoKey, 'Content-Type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ sender: parseFrom(env.smtp.from), to: [{ email: m.to }], subject: m.subject, htmlContent: m.html, textContent: m.text }),
+    body: JSON.stringify({
+      sender: parseFrom(env.smtp.from),
+      to: [{ email: m.to }],
+      subject: m.subject,
+      htmlContent: m.html,
+      textContent: m.text,
+    }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!r.ok) throw new Error(`Brevo answered ${r.status}: ${(await r.text()).slice(0, 300)}`);
@@ -51,7 +57,10 @@ export const mailer = {
 export async function checkMail(): Promise<{ provider: typeof mailProvider; ok: boolean; error?: string }> {
   try {
     if (mailProvider === 'brevo') {
-      const r = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': env.brevoKey, accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+      const r = await fetch('https://api.brevo.com/v3/account', {
+        headers: { 'api-key': env.brevoKey, accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      });
       return r.ok ? { provider: 'brevo', ok: true } : { provider: 'brevo', ok: false, error: `Brevo rejected the API key (${r.status}).` };
     }
     if (transport) {
@@ -74,7 +83,13 @@ export function testEmail(link: string): Omit<Mail, 'to'> {
   return {
     subject: 'Crewboard test email',
     text: `This is a test from your Crewboard admin panel. If you can read it, email is working.\n\n${link}`,
-    html: layout({ heading: 'Email is working', intro: 'This is a test from your Crewboard admin panel. Confirmation, invite and password-reset emails will arrive the same way.', button: 'Open Crewboard', link, footnote: 'You can delete this email.' }),
+    html: layout({
+      heading: 'Email is working',
+      intro: 'This is a test from your Crewboard admin panel. Confirmation, invite and password-reset emails will arrive the same way.',
+      button: 'Open Crewboard',
+      link,
+      footnote: 'You can delete this email.',
+    }),
   };
 }
 
@@ -107,11 +122,18 @@ function layout(o: { heading: string; intro: string; button: string; link: strin
 }
 
 export function resetEmail(name: string, link: string): Omit<Mail, 'to'> {
-  const footnote = "The link works once and expires in 1 hour. If you didn't ask for this, ignore this email; your password stays the same.";
+  const footnote =
+    "The link works once and expires in 1 hour. If you didn't ask for this, ignore this email; your password stays the same.";
   return {
     subject: 'Reset your Crewboard password',
     text: `Hi ${first(name)},\n\nSomeone asked to reset the password for your Crewboard account. Open this link to choose a new one:\n\n${link}\n\n${footnote}\n\nCrewboard`,
-    html: layout({ heading: 'Reset your password', intro: `Hi ${esc(first(name))}, someone asked to reset the password for your Crewboard account. Choose a new one with the button below.`, button: 'Choose a new password', link, footnote }),
+    html: layout({
+      heading: 'Reset your password',
+      intro: `Hi ${esc(first(name))}, someone asked to reset the password for your Crewboard account. Choose a new one with the button below.`,
+      button: 'Choose a new password',
+      link,
+      footnote,
+    }),
   };
 }
 
@@ -120,7 +142,13 @@ export function verifyEmail(name: string, link: string): Omit<Mail, 'to'> {
   return {
     subject: 'Confirm your email for Crewboard',
     text: `Hi ${first(name)},\n\nConfirm this is your email address so teammates can invite you to their boards:\n\n${link}\n\n${footnote}\n\nCrewboard`,
-    html: layout({ heading: 'Confirm your email', intro: `Hi ${esc(first(name))}, confirm this is your email address so teammates can invite you to their boards.`, button: 'Confirm my email', link, footnote }),
+    html: layout({
+      heading: 'Confirm your email',
+      intro: `Hi ${esc(first(name))}, confirm this is your email address so teammates can invite you to their boards.`,
+      button: 'Confirm my email',
+      link,
+      footnote,
+    }),
   };
 }
 

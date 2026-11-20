@@ -14,10 +14,7 @@ import { LogoMark } from './components/ui/Logo';
 import { WelcomeSplash } from './components/WelcomeSplash';
 import { useStore } from './store/useStore';
 
-/**
- * Shown while the app connects. A normal load takes well under a second; if it takes longer, the free
- * server is probably waking up, so say so plainly instead of leaving a blank screen.
- */
+/** Shown while the app connects. */
 function Loading() {
   const [seconds, setSeconds] = useState(0);
   useEffect(() => {
@@ -38,12 +35,19 @@ function Loading() {
             <div className="flex flex-col gap-2" role="status" aria-live="polite">
               <h1 className="font-wide text-2xl font-extrabold tracking-tight">Waking up the server…</h1>
               <p className="text-muted">
-                Crewboard runs on a free server that naps when nobody is using it. It usually takes <b className="text-ink">30–60 seconds</b> to start.
-                This page opens by itself; you don’t need to refresh.
+                Crewboard runs on a free server that naps when nobody is using it. It usually takes{' '}
+                <b className="text-ink">30–60 seconds</b> to start. This page opens by itself; you don’t need to refresh.
               </p>
             </div>
             <div className="w-full">
-              <div className="h-2 w-full overflow-hidden rounded-full bg-column" role="progressbar" aria-label="Starting the server" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+              <div
+                className="h-2 w-full overflow-hidden rounded-full bg-column"
+                role="progressbar"
+                aria-label="Starting the server"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+              >
                 <div className="h-full rounded-full bg-accent" style={{ width: `${progress}%` }} />
               </div>
               <p className="mt-2 font-mono text-xs tabular-nums text-muted">
@@ -84,8 +88,22 @@ export default function App() {
     <>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<GuestOnly><AuthPage mode="login" /></GuestOnly>} />
-        <Route path="/signup" element={<GuestOnly><AuthPage mode="signup" /></GuestOnly>} />
+        <Route
+          path="/login"
+          element={
+            <GuestOnly>
+              <AuthPage mode="login" />
+            </GuestOnly>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <GuestOnly>
+              <AuthPage mode="signup" />
+            </GuestOnly>
+          }
+        />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />

@@ -7,7 +7,13 @@ import { dueLabel, dueStatus } from '../../lib/dates';
 export function LabelChip({ id, className }: { id: LabelId; className?: string }) {
   const l = LABELS[id];
   return (
-    <span className={clsx('inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide', l.className, className)}>
+    <span
+      className={clsx(
+        'inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+        l.className,
+        className,
+      )}
+    >
       {l.name}
     </span>
   );
@@ -28,7 +34,11 @@ export function DueChip({ due, done, className }: { due: string | null; done: bo
   const a11y = { over: 'Overdue', soon: 'Due soon', done: 'Completed', normal: 'Due', none: '' }[st];
   return (
     <span
-      className={clsx('inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums', dueStyles[st], className)}
+      className={clsx(
+        'inline-flex items-center gap-1 rounded-[5px] px-1.5 py-0.5 font-mono text-[10.5px] tabular-nums',
+        dueStyles[st],
+        className,
+      )}
       title={`${a11y}: ${due}`}
     >
       {st === 'done' ? <Check size={11} strokeWidth={3} /> : <Clock size={11} />}
