@@ -389,6 +389,40 @@ describe('profile & settings', () => {
   });
 });
 
+describe('profile photo', () => {
+  // A real 1x1 PNG.
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+
+  test('upload, show to everyone, and remove', async () => {
+    const { c, id } = await signup('Photo Person', 'photo@example.edu');
+    const up = await c.req('PUT', '/auth/avatar', { image: PNG });
+    assert.equal(up.status, 200);
+    assert.match(up.body.user.avatarUrl, new RegExp(`^/api/avatars/${id}\\?v=\\d+$`));
+
+    const img = await fetch(base + up.body.user.avatarUrl);
+    assert.equal(img.status, 200);
+    assert.equal(img.headers.get('content-type'), 'image/png');
+    assert.equal(
+      Buffer.from(await img.arrayBuffer())
+        .subarray(1, 4)
+        .toString(),
+      'PNG',
+    );
+
+    const gone = await c.del('/auth/avatar');
+    assert.equal(gone.body.user.avatarUrl, null);
+    assert.equal((await fetch(`${base}/api/avatars/${id}`)).status, 404);
+  });
+
+  test('rejects things that are not images', async () => {
+    const { c } = await signup('Sneaky Upload', 'sneaky@example.edu');
+    assert.equal((await c.req('PUT', '/auth/avatar', { image: 'data:text/html;base64,PGgxPmhpPC9oMT4=' })).status, 400);
+    const fakePng = 'data:image/png;base64,' + Buffer.from('<script>alert(1)</script>').toString('base64');
+    assert.equal((await c.req('PUT', '/auth/avatar', { image: fakePng })).status, 400);
+    assert.equal((await new Client().req('PUT', '/auth/avatar', { image: PNG })).status, 401);
+  });
+});
+
 describe('forgot password', () => {
   const sent = () => mail.filter((m) => /Reset your/.test(m.subject));
   const tokenFrom = (text: string) => tokenIn(text, 'reset-password');

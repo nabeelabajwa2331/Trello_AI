@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Eye, EyeOff, KeyRound, MonitorX, ShieldCheck, UserRound } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { AppHeader } from '../components/AppHeader';
-import { Avatar } from '../components/ui/Avatar';
+import { AvatarUploader, RemovePhotoButton } from '../components/AvatarUploader';
 import { api, errorMessage } from '../lib/api';
 import { useStore } from '../store/useStore';
 import type { User } from '../types';
@@ -13,7 +13,7 @@ type Account = { user: User; hasPassword: boolean; usesGoogle: boolean; builtInA
 
 /** Your own account: name, password, and where you're logged in. */
 export default function SettingsPage() {
-  const me = useStore((s) => s.me);
+  const hasPhoto = useStore((s) => !!s.users[s.me]?.avatarUrl);
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState('');
   const load = () =>
@@ -41,13 +41,17 @@ export default function SettingsPage() {
           <>
             <Section icon={UserRound} title="Profile">
               <div className="flex items-center gap-4">
-                <Avatar userId={me} size="lg" />
+                <AvatarUploader size="lg" />
                 <div className="min-w-0">
                   <div className="truncate font-semibold">{account.user.name}</div>
                   <div className="truncate text-sm text-muted">{account.user.email}</div>
                   <div className="text-xs text-muted">
                     Member since {format(parseISO(account.createdAt), 'MMMM d, yyyy')}
                     {account.usesGoogle && ' · signs in with Google'}
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-3 text-xs text-muted">
+                    <span>Tap the camera to {hasPhoto ? 'change' : 'add'} your photo.</span>
+                    <RemovePhotoButton />
                   </div>
                 </div>
               </div>
@@ -58,8 +62,10 @@ export default function SettingsPage() {
               {account.builtInAdmin ? (
                 <p className="flex items-start gap-2 rounded-[8px] bg-column px-3 py-2.5 text-sm">
                   <ShieldCheck size={16} className="mt-0.5 shrink-0" />
-                  This is the built-in admin account. Its password is set on the server as{' '}
-                  <code className="font-mono text-xs">SITE_ADMIN_PASSWORD</code> (Render → Environment), so change it there.
+                  <span>
+                    This is the built-in admin account. Its password is set on the server as{' '}
+                    <code className="font-mono text-xs">SITE_ADMIN_PASSWORD</code> (Render → Environment), so change it there.
+                  </span>
                 </p>
               ) : (
                 <PasswordForm hasPassword={account.hasPassword} onSaved={load} />

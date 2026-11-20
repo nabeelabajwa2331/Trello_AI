@@ -4,12 +4,14 @@ import { useStore } from '../store/useStore';
 import { Avatar } from './ui/Avatar';
 import { firstName } from '../lib/id';
 
-type Activity = { actorId: string; text: string; boardId: string; cardId?: string };
+/** elsewhere: your own change, made on another tab or device. */
+type Activity = { actorId: string; text: string; boardId: string; cardId?: string; elsewhere?: boolean };
 
 /** Small bottom-right popup: who did what, on which board. Tap to open the card. */
 function ActivityToast({ id, a }: { id: string | number; a: Activity }) {
   const navigate = useNavigate();
-  const who = useStore((s) => firstName(s.users[a.actorId]?.name ?? 'Someone'));
+  const name = useStore((s) => firstName(s.users[a.actorId]?.name ?? 'Someone'));
+  const who = a.elsewhere ? 'You (on another tab or device)' : name;
   const board = useStore((s) => s.boards[a.boardId]);
   const parts = a.text.split(/“([^”]+)”/g);
 

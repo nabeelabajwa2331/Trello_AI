@@ -101,13 +101,18 @@ interface State {
 
 export const findListOf = (board: Board, cardId: string) => board.listOrder.find((id) => board.lists[id]?.cardIds.includes(cardId));
 
+/** When this tab last changed a board, to tell its own echoes apart from changes made elsewhere. */
+let lastLocalChange = 0;
+
 export const useStore = create<State>()(
   immer((set, get) => {
     /** Optimistic update: change the screen now, send the request, then take the server's board as the truth. */
     const run = async (boardId: string, optimistic: ((b: Board) => void) | null, request: () => Promise<Snap>): Promise<Snap | null> => {
       if (optimistic) set((s) => void (s.boards[boardId] && optimistic(s.boards[boardId])));
+      lastLocalChange = Date.now();
       try {
         const snap = await request();
+        lastLocalChange = Date.now();
         get().applySnapshot(snap);
         return snap;
       } catch (e) {
@@ -129,11 +134,12 @@ export const useStore = create<State>()(
         onSync: ({ board, users, log }) => {
           if (!get().boards[board.id]) return;
           get().applySnapshot({ board, users }, true);
-          if (log && log.actorId !== get().me) {
-            if (log.cardId) set((s) => void (s.flash = { cardId: log.cardId!, at: Date.now() }));
-            // Popup on every page, so teammates' changes are noticed even outside this board.
-            showActivity({ actorId: log.actorId, text: log.text, boardId: board.id, cardId: log.cardId });
-          }
+          if (!log) return;
+          // Your own change made in this tab: no popup. From a teammate, or from you on another tab/device: popup.
+          const mine = log.actorId === get().me;
+          if (mine && Date.now() - lastLocalChange < 3000) return;
+          if (log.cardId) set((s) => void (s.flash = { cardId: log.cardId!, at: Date.now() }));
+          showActivity({ actorId: log.actorId, text: log.text, boardId: board.id, cardId: log.cardId, elsewhere: mine });
         },
         onNotification: (n) => {
           if ('type' in n) {

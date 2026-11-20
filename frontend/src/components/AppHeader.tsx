@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Bell, LayoutGrid, LogOut, MailWarning, MonitorX, Settings, ShieldCheck, WifiOff } from 'lucide-react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Bell, Camera, LayoutGrid, LogOut, MailWarning, MonitorX, Settings, ShieldCheck, WifiOff } from 'lucide-react';
 import clsx from 'clsx';
 import { Logo } from './ui/Logo';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -16,6 +16,7 @@ export function AppHeader() {
   const resend = useStore((s) => s.resendVerification);
   const adminPending = useStore((s) => s.adminPending);
   const confirmRequired = useStore((s) => s.confirmRequired);
+  const isAdmin = useStore((s) => s.isAdmin);
   const [sending, setSending] = useState(false);
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface">
@@ -57,6 +58,20 @@ export function AppHeader() {
         <Link to="/boards" className="btn-quiet ml-2 hidden sm:inline-flex">
           <LayoutGrid size={16} /> Boards
         </Link>
+        {isAdmin && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              clsx(
+                'btn h-9 gap-1.5 border px-2.5 sm:px-3',
+                isActive ? 'border-ink bg-ink text-surface' : 'border-ink bg-accent text-on-accent hover:bg-[#E9B71F]',
+              )
+            }
+            title="Admin panel"
+          >
+            <ShieldCheck size={16} /> <span className="hidden sm:inline">Admin</span>
+          </NavLink>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <NotificationBell />
           <ThemeToggle />
@@ -153,9 +168,23 @@ function UserMenu() {
     >
       {() => (
         <div>
-          <div className="px-2.5 py-2">
-            <div className="font-semibold">{me?.name}</div>
-            <div className="truncate text-xs text-muted">{me?.email}</div>
+          <div className="flex items-center gap-3 px-2.5 py-2">
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className="relative shrink-0 rounded-full"
+              aria-label="Change profile photo"
+              title="Change profile photo"
+            >
+              <Avatar userId={meId} size="lg" />
+              <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full border-2 border-surface bg-accent text-on-accent">
+                <Camera size={11} />
+              </span>
+            </button>
+            <div className="min-w-0">
+              <div className="truncate font-semibold">{me?.name}</div>
+              <div className="truncate text-xs text-muted">{me?.email}</div>
+            </div>
           </div>
           <div className="my-1 border-t border-line" />
           <MenuItem onClick={() => navigate('/settings')}>

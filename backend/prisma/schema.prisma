@@ -37,6 +37,17 @@ model User {
   resets        PasswordReset[]
   verifications EmailVerification[]
   sessions      Session[]
+  photo         Avatar?
+}
+
+/// Uploaded profile photo, stored in the database because the free host's disk is wiped on restart.
+model Avatar {
+  userId    String   @id
+  data      Bytes
+  mime      String
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// One row per logged-in browser. Logging out deletes it, so a copied cookie stops working.

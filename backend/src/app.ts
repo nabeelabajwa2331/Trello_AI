@@ -6,6 +6,7 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { env } from './env.js';
+import { prisma } from './db.js';
 import { authRouter } from './auth.js';
 import { api } from './routes.js';
 import { admin } from './admin.js';
@@ -21,10 +22,21 @@ export function createAppServer() {
   app.disable('x-powered-by');
   app.set('trust proxy', 1); // Render sits behind a proxy
   app.use(cors({ origin: env.clientOrigin, credentials: true }));
-  app.use(express.json({ limit: '100kb' }));
+  app.use(express.json({ limit: '700kb' })); // room for a profile photo
   app.use(cookieParser());
 
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
+  // Profile photos. The URL carries a version (?v=…), so browsers can keep them for a long time.
+  app.get('/api/avatars/:userId', async (req, res, next) => {
+    try {
+      const a = await prisma.avatar.findUnique({ where: { userId: req.params.userId } });
+      if (!a) return res.status(404).end();
+      res.set({ 'Content-Type': a.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+      res.send(Buffer.from(a.data));
+    } catch (e) {
+      next(e);
+    }
+  });
   app.use('/api/auth', authRouter);
   app.use('/api/admin', admin);
   app.use('/api', api);

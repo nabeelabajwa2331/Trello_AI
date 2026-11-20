@@ -59,43 +59,119 @@ function Face({ kind, color, mood }: { kind: Creature; color: string; mood: Mood
 
 /**
  * A little character hiding behind the card; only its ears show above the top edge.
- * Tap them and its head pops up from behind the card with a reaction, then ducks back down.
+ * Hover or press the card and it peeks up to look at you; tap it for a full pop with a reaction.
  */
 export function Peeker({ card, done }: { card: Card; done: boolean }) {
   const color = useStore((s) => (card.assignees[0] ? s.users[card.assignees[0]]?.color : undefined)) ?? '#F4C430';
   const kind = creatureFor(card.id);
   const anchor = useRef<HTMLSpanElement>(null);
   const [pop, setPop] = useState<{ x: number; y: number; text: string; mood: Mood } | null>(null);
+  const [peek, setPeek] = useState<{ x: number; y: number } | null>(null);
   const taps = useRef(0);
+  const popping = useRef(false);
+  popping.current = !!pop;
+
+  const where = () => {
+    const el = anchor.current;
+    if (!el) return null;
+    return { x: el.getBoundingClientRect().left, y: (el.parentElement as HTMLElement).getBoundingClientRect().top };
+  };
+
+  // Half-peek while the pointer is over the card (desktop) or briefly after a touch (phones).
+  useEffect(() => {
+    const cardEl = anchor.current?.parentElement;
+    if (!cardEl) return;
+    let enter: ReturnType<typeof setTimeout>;
+    let leave: ReturnType<typeof setTimeout>;
+    const show = () => !popping.current && setPeek(where());
+    const onEnter = () => {
+      clearTimeout(leave);
+      enter = setTimeout(show, 120);
+    };
+    const onLeave = () => {
+      clearTimeout(enter);
+      setPeek(null);
+    };
+    const onTouch = () => {
+      show();
+      clearTimeout(leave);
+      leave = setTimeout(() => setPeek(null), 1400);
+    };
+    cardEl.addEventListener('mouseenter', onEnter);
+    cardEl.addEventListener('mouseleave', onLeave);
+    cardEl.addEventListener('touchstart', onTouch, { passive: true });
+    return () => {
+      clearTimeout(enter);
+      clearTimeout(leave);
+      cardEl.removeEventListener('mouseenter', onEnter);
+      cardEl.removeEventListener('mouseleave', onLeave);
+      cardEl.removeEventListener('touchstart', onTouch);
+    };
+  }, []);
 
   const stop = (e: SyntheticEvent) => e.stopPropagation(); // never start a drag or open the card
+  const popUp = (e: SyntheticEvent) => {
+    e.stopPropagation();
+    if (pop) return;
+    const p = where();
+    if (!p) return;
+    setPeek(null);
+    setPop({ ...p, ...reactionFor(card, done, taps.current++) });
+  };
 
   return (
     <>
+      {/* the ears, sitting behind the card */}
       <span
         ref={anchor}
+        aria-hidden="true"
+        className="absolute -top-[8px] right-3 z-0 block h-[44px] w-[44px]"
+        style={{ visibility: pop || peek ? 'hidden' : undefined }}
+      >
+        <Face kind={kind} color={color} mood="happy" />
+      </span>
+      {/* a bigger, invisible tap target over the ears and the card's corner */}
+      <span
         role="button"
         tabIndex={-1}
         aria-label="Peek"
-        title="Someone’s hiding here"
+        title="Someone’s hiding here. Tap!"
         onPointerDown={stop}
         onMouseDown={stop}
         onTouchStart={stop}
         onKeyDown={stop}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (pop) return;
-          const r = anchor.current!.getBoundingClientRect();
-          const cardTop = (anchor.current!.parentElement as HTMLElement).getBoundingClientRect().top;
-          setPop({ x: r.left, y: cardTop, ...reactionFor(card, done, taps.current++) });
-        }}
-        className="absolute -top-[8px] right-3 z-0 block h-[44px] w-[44px] cursor-pointer"
-        style={{ visibility: pop ? 'hidden' : undefined }}
-      >
-        <Face kind={kind} color={color} mood="happy" />
-      </span>
+        onClick={popUp}
+        className="absolute -top-[12px] right-1 z-[2] block h-[30px] w-[60px] cursor-pointer"
+      />
+      {peek && !pop && <PeekHalf {...peek} kind={kind} color={color} />}
       {pop && <PeekPop {...pop} kind={kind} color={color} onDone={() => setPop(null)} />}
     </>
+  );
+}
+
+/** Head rising halfway, enough to see its eyes. */
+function PeekHalf({ x, y, kind, color }: { x: number; y: number; kind: Creature; color: string }) {
+  const head = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const a = head.current?.animate([{ transform: 'translateY(80%)' }, { transform: 'translateY(28%)' }], {
+      duration: reduce ? 1 : 220,
+      easing: 'cubic-bezier(.2,.9,.3,1.2)',
+      fill: 'forwards',
+    });
+    return () => a?.cancel();
+  }, []);
+  return createPortal(
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed z-[45] overflow-hidden"
+      style={{ left: x, top: y - HEAD, width: HEAD, height: HEAD }}
+    >
+      <div ref={head} style={{ transform: 'translateY(80%)' }}>
+        <Face kind={kind} color={color} mood="happy" />
+      </div>
+    </div>,
+    document.body,
   );
 }
 

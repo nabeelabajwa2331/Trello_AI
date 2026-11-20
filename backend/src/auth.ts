@@ -9,7 +9,7 @@ import { prisma } from './db.js';
 import { env } from './env.js';
 import { HttpError, appOrigin, handle, parse } from './http.js';
 import { mailEnabled, mailer, resetEmail, sendQuietly, verifyEmail } from './mail.js';
-import { disconnectSession, disconnectUser } from './realtime.js';
+import { broadcastBoard, disconnectSession, disconnectUser } from './realtime.js';
 
 export const COOKIE = 'cb_token';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -492,6 +492,54 @@ authRouter.patch(
   handle(async (req, res) => {
     const { name } = parse(z.object({ name: z.string().trim().min(2, 'Use at least 2 characters.').max(60) }), req.body);
     const user = await prisma.user.update({ where: { id: req.userId }, data: { name } });
+    res.json({ user: publicUser(user) });
+  }),
+);
+
+/* ------------------------------------------------------------------ profile photo */
+
+const MAX_PHOTO = 300 * 1024;
+const PHOTO_TYPES: Record<string, (b: Buffer) => boolean> = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8,
+  'image/png': (b) => b.subarray(0, 4).toString('hex') === '89504e47',
+  'image/webp': (b) => b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP',
+};
+
+/** Teammates see the new photo on their boards straight away. */
+async function refreshBoardsOf(userId: string) {
+  const boards = await prisma.boardMember.findMany({ where: { userId }, select: { boardId: true } });
+  for (const b of boards) await broadcastBoard(b.boardId, null);
+}
+
+/** Upload a photo as a data URL (the app resizes it to 256x256 first). */
+authRouter.put(
+  '/avatar',
+  requireUser,
+  handle(async (req, res) => {
+    const { image } = parse(z.object({ image: z.string().max(600_000) }), req.body);
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(image);
+    if (!m) throw new HttpError(400, 'Choose a JPG, PNG or WebP image.');
+    const data = Buffer.from(m[2], 'base64');
+    if (data.length > MAX_PHOTO) throw new HttpError(413, 'That photo is too large. Try a smaller one.');
+    if (!PHOTO_TYPES[m[1]](data)) throw new HttpError(400, "That file isn't a valid image.");
+    await prisma.avatar.upsert({
+      where: { userId: req.userId },
+      create: { userId: req.userId, data, mime: m[1] },
+      update: { data, mime: m[1] },
+    });
+    const user = await prisma.user.update({ where: { id: req.userId }, data: { avatarUrl: `/api/avatars/${req.userId}?v=${Date.now()}` } });
+    await refreshBoardsOf(req.userId);
+    res.json({ user: publicUser(user) });
+  }),
+);
+
+authRouter.delete(
+  '/avatar',
+  requireUser,
+  handle(async (req, res) => {
+    await prisma.avatar.deleteMany({ where: { userId: req.userId } });
+    const user = await prisma.user.update({ where: { id: req.userId }, data: { avatarUrl: null } });
+    await refreshBoardsOf(req.userId);
     res.json({ user: publicUser(user) });
   }),
 );
