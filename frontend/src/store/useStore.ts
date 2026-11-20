@@ -163,12 +163,25 @@ export const useStore = create<State>()(
       flash: null,
 
       /* ---------------- session ---------------- */
+      /**
+       * First load. If the server is asleep (free hosting), requests fail or hang while it starts;
+       * keep trying for up to 2 minutes instead of treating the visitor as logged out.
+       */
       init: async () => {
-        try {
-          await get().bootstrap();
-          startRealtime();
-        } catch {
-          set((s) => void (s.status = 'guest'));
+        const started = Date.now();
+        for (;;) {
+          try {
+            await get().bootstrap();
+            startRealtime();
+            return;
+          } catch (e) {
+            const waking = e instanceof ApiError && (e.status === 0 || e.status >= 500);
+            if (!waking || Date.now() - started > 120_000) {
+              set((s) => void (s.status = 'guest'));
+              return;
+            }
+            await new Promise((r) => setTimeout(r, 3000));
+          }
         }
       },
       sessionEnded: () => {

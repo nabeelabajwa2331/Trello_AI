@@ -22,7 +22,11 @@ The whole app runs as **one Render web service**: the API serves the built React
 3. Render runs `npm run build`, then `npm start`. On start, `prisma db push` creates the tables in Neon (empty).
 4. Open the Render URL, sign up as the first real user, create a board, and invite your team.
 
-Every push to `main` redeploys automatically. The free plan sleeps after 15 minutes idle; the first visit after that takes about 30–50 seconds.
+Every push to `main` redeploys automatically. The free plan sleeps after 15 minutes idle; the first visit after that takes about 30–60 seconds.
+
+**While the server wakes up:** after someone's first visit, a service worker (`frontend/public/sw.js`) keeps a copy of the app on their device, so the page opens instantly and shows "Waking up the server…" with a timer, then continues by itself. Pages wait 3 s for the network before using the saved copy; `/api` and `/socket.io` are never cached.
+
+**To stop it sleeping at all:** add a free uptime monitor (for example UptimeRobot) that requests `https://<your-app>.onrender.com/api/health` every 5 minutes. One always-on free service fits in Render's 750 free hours a month.
 
 ## Admin panel
 

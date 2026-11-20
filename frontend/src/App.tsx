@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import Landing from './pages/Landing';
@@ -12,10 +12,47 @@ import NotFound from './pages/NotFound';
 import { LogoMark } from './components/ui/Logo';
 import { useStore } from './store/useStore';
 
+/**
+ * Shown while the app connects. A normal load takes well under a second; if it takes longer, the free
+ * server is probably waking up, so say so plainly instead of leaving a blank screen.
+ */
 function Loading() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const started = Date.now();
+    const t = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 500);
+    return () => clearInterval(t);
+  }, []);
+  const waking = seconds >= 3;
+  // Fills toward 95% over about a minute, then waits there; it never claims to be done before it is.
+  const progress = Math.min(95, Math.round((seconds / 60) * 95));
+
   return (
-    <div className="grid min-h-screen place-items-center" aria-busy="true" aria-label="Loading">
-      <LogoMark className="h-10 w-10 opacity-60" />
+    <div className="grid min-h-screen place-items-center px-4" aria-busy="true">
+      <div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
+        <LogoMark className={waking ? 'h-12 w-12' : 'h-10 w-10 opacity-60'} />
+        {waking ? (
+          <>
+            <div className="flex flex-col gap-2" role="status" aria-live="polite">
+              <h1 className="font-wide text-2xl font-extrabold tracking-tight">Waking up the server…</h1>
+              <p className="text-muted">
+                Crewboard runs on a free server that naps when nobody is using it. It usually takes <b className="text-ink">30–60 seconds</b> to start.
+                This page opens by itself; you don’t need to refresh.
+              </p>
+            </div>
+            <div className="w-full">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-column" role="progressbar" aria-label="Starting the server" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+                <div className="h-full rounded-full bg-accent" style={{ width: `${progress}%` }} />
+              </div>
+              <p className="mt-2 font-mono text-xs tabular-nums text-muted">
+                {seconds} s{seconds > 75 ? ' · taking longer than usual, still trying' : ''}
+              </p>
+            </div>
+          </>
+        ) : (
+          <span className="sr-only">Loading</span>
+        )}
+      </div>
     </div>
   );
 }
