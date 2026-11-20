@@ -6,9 +6,9 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { env } from './env.js';
-import { HttpError, forbidden, handle, notFound, parse } from './http.js';
+import { HttpError, appOrigin, forbidden, handle, notFound, parse } from './http.js';
 import { endAllSessions, isAdmin, requireUser, sendVerification } from './auth.js';
-import { mailEnabled } from './mail.js';
+import { checkMail, mailEnabled, mailProvider, mailer, testEmail } from './mail.js';
 import { boardDeleted, broadcastBoard } from './realtime.js';
 
 export const admin = Router();
@@ -64,11 +64,38 @@ admin.get(
       signups: [...perDay].map(([date, count]) => ({ date, count })),
       system: {
         email: mailEnabled,
+        emailProvider: mailProvider,
+        emailConfirmation: env.requireEmailConfirmation,
         google: !!env.googleClientId,
         appUrl: env.appUrl || null,
-        admins: [...env.adminEmails],
+        admins: [...env.adminEmails, ...(env.siteAdmin.email ? [`${env.siteAdmin.email} (built-in)`] : [])],
       },
     });
+  }),
+);
+
+/* ------------------------------------------------------------------ email check */
+
+/** Connects to the email service without sending anything. */
+admin.get(
+  '/email-check',
+  handle(async (_req, res) => {
+    res.json(await checkMail());
+  }),
+);
+
+/** Sends a real test email so you can see it arrive (and check the spam folder). */
+admin.post(
+  '/test-email',
+  handle(async (req, res) => {
+    const { to } = parse(z.object({ to: z.string().trim().toLowerCase().email('Enter a valid email address.') }), req.body);
+    if (!mailEnabled) throw new HttpError(400, 'No email service is set up yet. Add the SMTP or BREVO settings on Render first.');
+    try {
+      await mailer.send({ to, ...testEmail(appOrigin(req)) });
+    } catch (e) {
+      throw new HttpError(502, `Sending failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    res.json({ ok: true });
   }),
 );
 
@@ -107,6 +134,7 @@ admin.get(
       }),
     ]);
     res.json({
+      emailConfirmation: env.requireEmailConfirmation,
       total,
       page: q.page,
       pages: Math.max(1, Math.ceil(total / PAGE)),

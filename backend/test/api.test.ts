@@ -11,6 +11,9 @@ process.env.DATABASE_URL = 'file:./test.db';
 process.env.JWT_SECRET = 'test-secret';
 process.env.NODE_ENV = 'test'; // turns off rate limits so many signups in a row are fine
 process.env.ADMIN_EMAILS = 'site.admin@example.edu, Other.Admin@example.edu';
+process.env.REQUIRE_EMAIL_CONFIRMATION = 'true'; // most tests check the strict mode; one test turns it off
+process.env.SITE_ADMIN_EMAIL = 'admin@gmail.com'; // deliberately an address we don't own
+process.env.SITE_ADMIN_PASSWORD = 'built-in-admin-pass-1';
 
 let server: Server;
 let base = '';
@@ -110,6 +113,24 @@ describe('security', () => {
     // After confirming, the real owner of the inbox can join.
     await verify('target@example.edu');
     assert.equal((await impostor.c.post(`/invites/${inv.id}/accept`)).status, 200);
+  });
+
+  test('with confirmation OFF (the default): no email at signup, and invites can be accepted right away', async () => {
+    const { env } = await import('../src/env.js');
+    env.requireEmailConfirmation = false;
+    try {
+      const owner = await signup('Demo Owner', 'demo.owner@example.edu');
+      const b = (await owner.c.post('/boards', { title: 'Demo board', template: 'blank' })).body.board;
+      await owner.c.post(`/boards/${b.id}/invites`, { email: 'demo.member@fake.test', role: 'member' });
+      const demo = await signup('Demo Member', 'demo.member@fake.test');
+      assert.equal(mailsTo('demo.member@fake.test', /Confirm your email/).length, 0, 'no confirmation email');
+      const inv = (await demo.c.get('/bootstrap')).body.incoming[0];
+      assert.equal((await demo.c.post(`/invites/${inv.id}/accept`)).status, 200);
+      assert.equal((await demo.c.get(`/boards/${b.id}`)).status, 200);
+      assert.equal((await demo.c.get('/bootstrap')).body.settings.emailConfirmation, false);
+    } finally {
+      env.requireEmailConfirmation = true;
+    }
   });
 
   test('confirmation links work once, and signup sends one', async () => {
@@ -255,6 +276,54 @@ describe('site admin panel', () => {
     assert.equal(typeof b.cards, 'number');
     assert.equal(JSON.stringify(r.body).includes('"cards":{'), false);
     assert.equal('activity' in b, false);
+  });
+});
+
+describe('built-in site admin (SITE_ADMIN_EMAIL / SITE_ADMIN_PASSWORD)', () => {
+  before(async () => {
+    const { ensureSiteAdmin, google } = await import('../src/auth.js');
+    await ensureSiteAdmin();
+    // Stand-in for Google: the "credential" is JSON describing the Google account.
+    google.verify = async (credential: string) => JSON.parse(credential);
+  });
+  const login = (password: string) => new Client().post('/auth/login', { email: 'admin@gmail.com', password });
+
+  test('logs in with the password from the host and gets the admin panel', async () => {
+    const c = new Client();
+    assert.equal((await c.post('/auth/login', { email: 'admin@gmail.com', password: 'built-in-admin-pass-1' })).status, 200);
+    const me = (await c.get('/auth/me')).body.user;
+    assert.equal(me.isAdmin, true);
+    assert.equal(me.emailVerified, true);
+    assert.equal((await c.get('/admin/overview')).status, 200);
+  });
+
+  test("whoever really owns that Gmail can't take it over with Google or a reset email", async () => {
+    const g = await new Client().post('/auth/google', { credential: JSON.stringify({ sub: 'real-owner', email: 'admin@gmail.com', name: 'Real Owner' }) });
+    assert.equal(g.status, 403);
+    assert.match(g.body.error, /password only/);
+    await new Client().post('/auth/forgot', { email: 'admin@gmail.com' });
+    assert.equal(mailsTo('admin@gmail.com', /Reset your/).length, 0);
+  });
+
+  test('changing SITE_ADMIN_PASSWORD on the host changes it and ends old sessions', async () => {
+    const old = new Client();
+    await old.post('/auth/login', { email: 'admin@gmail.com', password: 'built-in-admin-pass-1' });
+    const { env } = await import('../src/env.js');
+    const { ensureSiteAdmin } = await import('../src/auth.js');
+    env.siteAdmin.password = 'rotated-admin-pass-22';
+    await ensureSiteAdmin();
+    assert.equal((await old.get('/auth/me')).status, 401);
+    assert.equal((await login('built-in-admin-pass-1')).status, 401);
+    assert.equal((await login('rotated-admin-pass-22')).status, 200);
+  });
+
+  test('the test-email button explains when no email service is set up', async () => {
+    const c = new Client();
+    await c.post('/auth/login', { email: 'admin@gmail.com', password: 'rotated-admin-pass-22' });
+    const r = await c.post('/admin/test-email', { to: 'someone@example.edu' });
+    assert.equal(r.status, 400);
+    assert.match(r.body.error, /No email service/);
+    assert.equal((await c.get('/admin/email-check')).body.provider, 'none');
   });
 });
 

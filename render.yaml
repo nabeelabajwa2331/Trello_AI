@@ -21,6 +21,17 @@ services:
         sync: false # your OAuth Client ID (…apps.googleusercontent.com)
       - key: ADMIN_EMAILS
         sync: false # who gets the admin panel, e.g. you@gmail.com (comma-separated; the email must be confirmed)
+      # Off by default. "true" = signup sends a confirmation link and email invites need a confirmed email.
+      - key: REQUIRE_EMAIL_CONFIRMATION
+        value: "false"
+      # Built-in admin that logs in with a password (no personal Gmail needed).
+      - key: SITE_ADMIN_EMAIL
+        sync: false # e.g. admin@crewboard.invalid
+      - key: SITE_ADMIN_PASSWORD
+        sync: false # 12+ characters; change it here to change it in the app
+      # Alternative to SMTP if the host blocks it: free API key from brevo.com (sender must be verified there)
+      - key: BREVO_API_KEY
+        sync: false
       # Password-reset emails. Without SMTP_HOST, reset links are written to the Render log instead.
       - key: APP_URL
         sync: false # e.g. https://crewboard-zgwk.onrender.com

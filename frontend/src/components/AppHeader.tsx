@@ -15,6 +15,7 @@ export function AppHeader() {
   const me = useStore((s) => s.users[s.me]);
   const resend = useStore((s) => s.resendVerification);
   const adminPending = useStore((s) => s.adminPending);
+  const confirmRequired = useStore((s) => s.confirmRequired);
   const [sending, setSending] = useState(false);
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface">
@@ -23,7 +24,7 @@ export function AppHeader() {
           <WifiOff size={14} /> Reconnecting… changes from your team will appear when you’re back online.
         </div>
       )}
-      {me && me.emailVerified === false && (
+      {me && me.emailVerified === false && (confirmRequired || adminPending) && (
         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-line bg-accent-soft px-4 py-2 text-center text-sm">
           <MailWarning size={15} className="shrink-0" />
           <span>

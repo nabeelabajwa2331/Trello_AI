@@ -2,6 +2,7 @@ import { Router, type Request } from 'express';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from './db.js';
+import { env } from './env.js';
 import { HttpError, appOrigin, forbidden, handle, notFound, parse } from './http.js';
 import { requireUser, publicUser, isAdmin, isPendingAdmin } from './auth.js';
 import { requireRole, type Action } from './permissions.js';
@@ -121,6 +122,7 @@ api.get(
 
     res.json({
       me: { ...publicUser(me), isAdmin: isAdmin(me), adminPending: isPendingAdmin(me) },
+      settings: { emailConfirmation: env.requireEmailConfirmation },
       users,
       boards: snaps.map((s) => s.board),
       incoming: incoming.map((i) => ({ id: i.id, fromUserId: i.invitedById, role: i.role, boardTitle: i.board.title, boardCover: i.board.cover })),
@@ -479,7 +481,7 @@ api.post(
     const inv = await prisma.invite.findUnique({ where: { id: req.params.inviteId } });
     if (!inv || !me || inv.email !== me.email) throw notFound('This invite');
     // Email invites go to an address, so we need proof that this account really owns it.
-    if (!me.emailVerifiedAt) throw forbidden(`Confirm your email first. We sent a link to ${me.email}; you can send it again from the banner at the top.`);
+    if (env.requireEmailConfirmation && !me.emailVerifiedAt) throw forbidden(`Confirm your email first. We sent a link to ${me.email}; you can send it again from the banner at the top.`);
     await joinBoard(req.userId, inv.boardId, inv.role);
     await prisma.invite.delete({ where: { id: inv.id } });
     await broadcastBoard(inv.boardId, null);

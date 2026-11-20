@@ -7,7 +7,7 @@ import { connectRealtime, disconnectRealtime } from '../lib/realtime';
 import { firstName, uid } from '../lib/id';
 
 type Snap = { board: Board; users: Record<string, User> };
-type Bootstrap = { me: User; users: Record<string, User>; boards: Board[]; incoming: IncomingInvite[]; notifications: Notification[] };
+type Bootstrap = { settings?: { emailConfirmation?: boolean }; me: User; users: Record<string, User>; boards: Board[]; incoming: IncomingInvite[]; notifications: Notification[] };
 
 interface State {
   status: 'loading' | 'guest' | 'ready';
@@ -16,6 +16,8 @@ interface State {
   isAdmin: boolean;
   /** Listed as a site admin, but the email isn't confirmed yet. */
   adminPending: boolean;
+  /** REQUIRE_EMAIL_CONFIRMATION is on: show the confirm-your-email banner. */
+  confirmRequired: boolean;
   users: Record<string, User>;
   boards: Record<string, Board>;
   boardOrder: string[];
@@ -150,6 +152,7 @@ export const useStore = create<State>()(
       me: '',
       isAdmin: false,
       adminPending: false,
+      confirmRequired: false,
       users: {},
       boards: {},
       boardOrder: [],
@@ -232,6 +235,7 @@ export const useStore = create<State>()(
           s.me = d.me.id;
           s.isAdmin = !!d.me.isAdmin;
           s.adminPending = !!(d.me as User & { adminPending?: boolean }).adminPending;
+          s.confirmRequired = !!d.settings?.emailConfirmation;
           s.users = d.users;
           s.boards = Object.fromEntries(d.boards.map((b) => [b.id, b]));
           s.boardOrder = d.boards.map((b) => b.id);

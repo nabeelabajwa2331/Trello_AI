@@ -7,24 +7,76 @@ const transport = env.smtp.host
       port: env.smtp.port,
       secure: env.smtp.port === 465,
       auth: env.smtp.user ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
     })
   : null;
 
-export const mailEnabled = !!transport;
+/** Which way email goes out: Brevo's HTTPS API, plain SMTP (e.g. Gmail), or nowhere (printed to the log). */
+export const mailProvider: 'brevo' | 'smtp' | 'none' = env.brevoKey ? 'brevo' : transport ? 'smtp' : 'none';
+export const mailEnabled = mailProvider !== 'none';
 
 export type Mail = { to: string; subject: string; text: string; html: string };
+
+/** "Crewboard <me@gmail.com>" → { name, email } for Brevo. */
+function parseFrom(from: string) {
+  const m = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(from);
+  return m ? { name: m[1].replace(/^"|"$/g, '') || 'Crewboard', email: m[2] } : { name: 'Crewboard', email: from.trim() };
+}
+
+async function sendWithBrevo(m: Mail) {
+  const r = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': env.brevoKey, 'Content-Type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ sender: parseFrom(env.smtp.from), to: [{ email: m.to }], subject: m.subject, htmlContent: m.html, textContent: m.text }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!r.ok) throw new Error(`Brevo answered ${r.status}: ${(await r.text()).slice(0, 300)}`);
+}
 
 /** Exposed as an object so tests can capture mail instead of sending it. */
 export const mailer = {
   async send(m: Mail) {
+    if (mailProvider === 'brevo') return sendWithBrevo(m);
     if (!transport) {
-      // No SMTP configured: print it so the link can still be used.
+      // No email service configured: print it so the link can still be used.
       console.log(`\n[mail not configured] To: ${m.to}\nSubject: ${m.subject}\n${m.text}\n`);
       return;
     }
     await transport.sendMail({ from: env.smtp.from, ...m });
   },
 };
+
+/** Checks the email settings without sending anything (admin panel → System). */
+export async function checkMail(): Promise<{ provider: typeof mailProvider; ok: boolean; error?: string }> {
+  try {
+    if (mailProvider === 'brevo') {
+      const r = await fetch('https://api.brevo.com/v3/account', { headers: { 'api-key': env.brevoKey, accept: 'application/json' }, signal: AbortSignal.timeout(10_000) });
+      return r.ok ? { provider: 'brevo', ok: true } : { provider: 'brevo', ok: false, error: `Brevo rejected the API key (${r.status}).` };
+    }
+    if (transport) {
+      await transport.verify();
+      return { provider: 'smtp', ok: true };
+    }
+    return { provider: 'none', ok: false, error: 'No email service is set up.' };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const hint = /timeout|ETIMEDOUT|ECONNREFUSED|ENETUNREACH/i.test(msg)
+      ? ' The server could not reach the mail server. Some hosts block SMTP; use BREVO_API_KEY instead.'
+      : /Invalid login|535|auth/i.test(msg)
+        ? ' Gmail rejected the login. Use a 16-character App Password (not your normal password), with 2-Step Verification turned on.'
+        : '';
+    return { provider: mailProvider, ok: false, error: msg + hint };
+  }
+}
+
+export function testEmail(link: string): Omit<Mail, 'to'> {
+  return {
+    subject: 'Crewboard test email',
+    text: `This is a test from your Crewboard admin panel. If you can read it, email is working.\n\n${link}`,
+    html: layout({ heading: 'Email is working', intro: 'This is a test from your Crewboard admin panel. Confirmation, invite and password-reset emails will arrive the same way.', button: 'Open Crewboard', link, footnote: 'You can delete this email.' }),
+  };
+}
 
 /** Sends without failing the request: a missing email shouldn't undo a signup or an invite. */
 export async function sendQuietly(m: Mail) {

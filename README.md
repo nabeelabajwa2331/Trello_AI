@@ -28,7 +28,11 @@ Every push to `main` redeploys automatically. The free plan sleeps after 15 minu
 
 `/admin` is for whoever runs the site (not board owners). It shows totals, a 14-day signups chart, setup status (email, Google, site address), a searchable user list, and a board list with counts only. Admins can resend confirmation emails, suspend accounts (blocks login and ends sessions) and delete accounts. A deleted user's boards go to the next person on them; boards with nobody else are deleted.
 
-Who is an admin: set `ADMIN_EMAILS` on Render (comma-separated). The account must have **confirmed** that email, so nobody can become an admin by signing up with your address. Admins can't suspend or delete themselves or each other. Card and comment contents are never shown in the panel.
+**Built-in admin (no personal Gmail):** set `SITE_ADMIN_EMAIL` (any address, e.g. `admin@crewboard.invalid`) and `SITE_ADMIN_PASSWORD` (12+ characters) on Render. On every start the server creates that account or updates its password, and it is always an admin. It logs in with that password only: "Continue with Google" and "Forgot password" are disabled for it, so whoever owns that address elsewhere can't take it over. To change the password, change it on Render.
+
+**Email:** set `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_USER`, `SMTP_PASS` (a Gmail App Password) and `MAIL_FROM`. If the host blocks SMTP, use a free `BREVO_API_KEY` instead. Admin panel → System has **Check connection** and **Send test email**.
+
+Who else is an admin: set `ADMIN_EMAILS` on Render (comma-separated). The account must have **confirmed** that email, so nobody can become an admin by signing up with your address. Admins can't suspend or delete themselves or each other. Card and comment contents are never shown in the panel.
 
 ## "Continue with Google"
 
@@ -78,7 +82,7 @@ React (Vite) ──REST /api──▶ Express ──Prisma──▶ SQLite
 ```
 
 - **Auth:** email and password (bcrypt) or Google. The httpOnly cookie holds a signed token pointing at a row in the `Session` table, so logging out, "Log out on every device" and password resets end sessions immediately. The socket uses the same cookie.
-- **Email confirmation:** signup sends a link. An account must confirm its email before it can accept an email invite, so nobody can claim an invite by signing up with someone else's address. Continuing with Google, or using a reset link, also confirms the email. If an unconfirmed password account is later claimed through Google, its password and sessions are removed.
+- **Email confirmation (optional, off by default):** with `REQUIRE_EMAIL_CONFIRMATION=true`, signup sends a link and an account must confirm its email before accepting an email invite. Off suits demo and test accounts with made-up addresses; anyone who signs up with an invited address can then accept that invite. Either way, Google sign-in and reset links mark an email as confirmed, `ADMIN_EMAILS` admins need a confirmed email (sign in with Google), and if an unconfirmed password account is later claimed through Google, its password and sessions are removed.
 - **Rate limits:** 30 sign-in attempts per 15 minutes per network, 6 emails per 15 minutes, and an account locks for 15 minutes after 8 wrong passwords.
 - **Invite links** and pending invite emails are only sent to Owners and Admins.
 - **Every change** goes through one `mutate()` helper on the server (`backend/src/routes.ts`): check role → apply → write the activity log → push the full board to the board's room.

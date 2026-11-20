@@ -55,9 +55,48 @@ export async function sessionFromToken(token: string | undefined): Promise<{ use
   return { userId: s.userId, sessionId: s.id };
 }
 
-/** Site admins are listed in ADMIN_EMAILS and must have confirmed that email (so nobody can sign up as one). */
+/** The built-in password-only admin account from SITE_ADMIN_EMAIL / SITE_ADMIN_PASSWORD. */
+export const isSiteAdminAccount = (email: string) => !!env.siteAdmin.email && email.toLowerCase() === env.siteAdmin.email;
+
+/**
+ * Site admins: listed in ADMIN_EMAILS with a confirmed email (so nobody can sign up as one),
+ * or the built-in SITE_ADMIN account.
+ */
 export const isAdmin = (u: { email: string; emailVerifiedAt?: Date | null; suspendedAt?: Date | null }) =>
-  !!u.emailVerifiedAt && !u.suspendedAt && env.adminEmails.has(u.email.toLowerCase());
+  !!u.emailVerifiedAt && !u.suspendedAt && (env.adminEmails.has(u.email.toLowerCase()) || isSiteAdminAccount(u.email));
+
+/**
+ * Creates or updates the built-in admin on every start, from SITE_ADMIN_EMAIL / SITE_ADMIN_PASSWORD.
+ * Changing the password on the host changes it here and logs that account out everywhere.
+ */
+export async function ensureSiteAdmin() {
+  const { email, password, name } = env.siteAdmin;
+  if (!email) return;
+  if (password.length < 12) {
+    console.error('SITE_ADMIN_PASSWORD must be at least 12 characters. The site admin account was not set up.');
+    return;
+  }
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (!existing) {
+    await prisma.user.create({ data: { email, name, passwordHash: await bcrypt.hash(password, 10), color: '#2A2926', emailVerifiedAt: new Date() } });
+    console.log(`Site admin account created: ${email}`);
+    return;
+  }
+  const same = !!existing.passwordHash && (await bcrypt.compare(password, existing.passwordHash));
+  await prisma.user.update({
+    where: { id: existing.id },
+    data: {
+      passwordHash: same ? undefined : await bcrypt.hash(password, 10),
+      emailVerifiedAt: existing.emailVerifiedAt ?? new Date(),
+      googleId: null, // password-only: never linked to whoever owns that address at Google
+      suspendedAt: null,
+    },
+  });
+  if (!same) {
+    await endAllSessions(existing.id);
+    console.log(`Site admin password updated for ${email}; old sessions ended.`);
+  }
+}
 
 /** Listed in ADMIN_EMAILS but the email isn't confirmed yet: the app tells them why there's no admin panel. */
 export const isPendingAdmin = (u: { email: string; emailVerifiedAt?: Date | null }) => !u.emailVerifiedAt && env.adminEmails.has(u.email.toLowerCase());
@@ -193,7 +232,7 @@ const nextColor = async () => AVATAR_COLORS[(await prisma.user.count()) % AVATAR
 export const authRouter = Router();
 
 /** Public settings the login page needs. */
-authRouter.get('/config', (_req, res) => res.json({ googleClientId: env.googleClientId || null }));
+authRouter.get('/config', (_req, res) => res.json({ googleClientId: env.googleClientId || null, emailConfirmation: env.requireEmailConfirmation }));
 
 authRouter.post(
   '/signup',
@@ -207,7 +246,7 @@ authRouter.post(
     const user = await prisma.user.create({
       data: { name: body.name, email: body.email, passwordHash: await bcrypt.hash(body.password, 10), color: await nextColor() },
     });
-    await sendVerification(req, user);
+    if (env.requireEmailConfirmation) await sendVerification(req, user);
     await startSession(req, res, user.id);
     res.status(201).json({ user: publicUser(user) });
   }),
@@ -249,6 +288,7 @@ authRouter.post(
       req.body,
     );
     const g = body.accessToken ? await google.verifyAccessToken(body.accessToken) : await google.verify(body.credential!);
+    if (isSiteAdminAccount(g.email)) throw new HttpError(403, 'This admin account signs in with its email and password only.');
 
     let user = (await prisma.user.findUnique({ where: { googleId: g.sub } })) ?? (await prisma.user.findUnique({ where: { email: g.email } }));
     let created = false;
@@ -316,7 +356,8 @@ authRouter.post(
   handle(async (req, res) => {
     const body = parse(z.object({ email }), req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
-    if (user) {
+    // The built-in admin's password lives on the host (SITE_ADMIN_PASSWORD), so no reset email goes out for it.
+    if (user && !isSiteAdminAccount(user.email)) {
       const recent = await prisma.passwordReset.findFirst({ where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 60_000) } } });
       if (!recent) {
         await prisma.passwordReset.deleteMany({ where: { userId: user.id, usedAt: null } });

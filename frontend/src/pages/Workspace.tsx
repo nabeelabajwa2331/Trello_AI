@@ -19,6 +19,7 @@ export default function Workspace() {
   const incoming = useStore((s) => s.incoming);
   const users = useStore((s) => s.users);
   const meId = useStore((s) => s.me);
+  const confirmRequired = useStore((s) => s.confirmRequired);
   const me = useStore((s) => s.users[s.me]);
   const accept = useStore((s) => s.acceptInvite);
   const decline = useStore((s) => s.declineInvite);
@@ -65,7 +66,7 @@ export default function Workspace() {
                 <Avatar userId={inv.fromUserId} size="md" />
                 <p className="min-w-0 flex-1">
                   <b>{users[inv.fromUserId]?.name}</b> invited you to <b>{inv.boardTitle}</b> as {inv.role}.
-                  {me?.emailVerified === false && (
+                  {me?.emailVerified === false && confirmRequired && (
                     <span className="mt-0.5 block text-sm text-muted">Confirm your email first (see the yellow banner at the top), then accept.</span>
                   )}
                 </p>

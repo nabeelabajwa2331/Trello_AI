@@ -25,7 +25,7 @@ type Overview = {
   cards: number;
   comments: number;
   signups: { date: string; count: number }[];
-  system: { email: boolean; google: boolean; appUrl: string | null; admins: string[] };
+  system: { email: boolean; emailProvider: 'brevo' | 'smtp' | 'none'; google: boolean; appUrl: string | null; admins: string[] };
 };
 type AdminUser = {
   id: string;
@@ -127,13 +127,73 @@ function OverviewTab() {
           <Bar label="Use Google sign-in" value={data.google} total={data.users} pct={pct(data.google)} />
           <h2 className="mt-2 text-base font-bold">System</h2>
           <ul className="flex flex-col gap-2 text-sm">
-            <SystemRow ok={data.system.email} label="Email sending (SMTP)" fix="Set SMTP_HOST, SMTP_USER, SMTP_PASS on Render. Until then, links only appear in the server log." />
+            <SystemRow
+              ok={data.system.email}
+              label={data.system.emailProvider === 'brevo' ? 'Email sending (Brevo)' : data.system.emailProvider === 'smtp' ? 'Email sending (SMTP)' : 'Email sending'}
+              fix="Set SMTP_HOST, SMTP_USER, SMTP_PASS (or BREVO_API_KEY) on Render. Until then, links only appear in the server log."
+            />
             <SystemRow ok={data.system.google} label="Google sign-in" fix="Set GOOGLE_CLIENT_ID on Render." />
             <SystemRow ok={!!data.system.appUrl} label={data.system.appUrl ? `Site address: ${data.system.appUrl}` : 'Site address (APP_URL)'} fix="Set APP_URL so links in emails always point to the live site." />
           </ul>
           <p className="text-xs text-muted">Admins: {data.system.admins.join(', ')}</p>
+          {data.system.email && <EmailTest />}
         </section>
       </div>
+    </div>
+  );
+}
+
+/** Check the email connection, then send a real test message to see it arrive. */
+function EmailTest() {
+  const [to, setTo] = useState('');
+  const [check, setCheck] = useState<{ ok: boolean; error?: string } | null>(null);
+  const [busy, setBusy] = useState<'check' | 'send' | null>(null);
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-semibold">Test email</span>
+        <button
+          className="btn-ghost h-8 px-2.5 text-xs"
+          disabled={busy !== null}
+          onClick={async () => {
+            setBusy('check');
+            try {
+              setCheck(await api<{ ok: boolean; error?: string }>('/admin/email-check'));
+            } catch (e) {
+              setCheck({ ok: false, error: errorMessage(e) });
+            }
+            setBusy(null);
+          }}
+        >
+          {busy === 'check' ? 'Checking…' : 'Check connection'}
+        </button>
+      </div>
+      {check && (
+        <p className={clsx('rounded-[8px] px-2.5 py-1.5 text-xs', check.ok ? 'bg-done text-done-fg' : 'bg-over text-over-fg')}>
+          {check.ok ? 'Connected. The email settings work.' : check.error}
+        </p>
+      )}
+      <form
+        className="flex gap-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!to.trim()) return;
+          setBusy('send');
+          try {
+            await api('/admin/test-email', 'POST', { to: to.trim() });
+            toast(`Test email sent to ${to.trim()}. Check the inbox and the spam folder.`);
+          } catch (err) {
+            toast.error(errorMessage(err));
+          }
+          setBusy(null);
+        }}
+      >
+        <label htmlFor="test-email-to" className="sr-only">Send a test email to</label>
+        <input id="test-email-to" type="email" className="input h-9 min-w-0 flex-1 text-xs" placeholder="you@example.com" value={to} onChange={(e) => setTo(e.target.value)} />
+        <button className="btn-primary h-9 px-3 text-xs" disabled={busy !== null || !to.trim()}>
+          {busy === 'send' ? 'Sending…' : 'Send'}
+        </button>
+      </form>
     </div>
   );
 }
@@ -262,7 +322,9 @@ function UsersTab() {
   const [debounced, setDebounced] = useState('');
   const [filter, setFilter] = useState<(typeof USER_FILTERS)[number][0]>('all');
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<Page<{ users: AdminUser[] }> | null>(null);
+  const [data, setData] = useState<Page<{ users: AdminUser[]; emailConfirmation?: boolean }> | null>(null);
+  // Email confirmation is a setting (REQUIRE_EMAIL_CONFIRMATION); when it's off, don't show confirmed/not confirmed.
+  const confirm = data?.emailConfirmation ?? false;
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState<AdminUser | null>(null);
 
@@ -302,7 +364,7 @@ function UsersTab() {
           <input id="admin-user-search" className="input pl-9" placeholder="Search by name or email" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
         <div className="flex flex-wrap gap-1.5">
-          {USER_FILTERS.map(([k, label]) => (
+          {USER_FILTERS.filter(([k]) => confirm || k !== 'unverified').map(([k, label]) => (
             <button
               key={k}
               onClick={() => setFilter(k)}
@@ -352,14 +414,14 @@ function UsersTab() {
                         {u.signIn.map((m) => <Badge key={m}>{m === 'google' ? 'Google' : 'Password'}</Badge>)}
                       </div>
                     </td>
-                    <td className="px-4 py-3">{u.emailVerified ? <Badge tone="done">Confirmed</Badge> : <Badge tone="soon">Not confirmed</Badge>}</td>
+                    <td className="px-4 py-3">{!confirm ? <span className="text-muted">—</span> : u.emailVerified ? <Badge tone="done">Confirmed</Badge> : <Badge tone="soon">Not confirmed</Badge>}</td>
                     <td className="px-4 py-3 tabular-nums">
                       {u.boards}
                       {u.owns > 0 && <span className="text-xs text-muted"> · owns {u.owns}</span>}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-muted">{u.lastActive ? ago(u.lastActive) : 'never'}</td>
                     <td className="px-2 py-3 text-right">
-                      <UserActions u={u} act={act} onDelete={() => setDeleting(u)} />
+                      <UserActions u={u} act={act} onDelete={() => setDeleting(u)} confirm={confirm} />
                     </td>
                   </tr>
                 ))}
@@ -386,10 +448,10 @@ function UsersTab() {
                     </div>
                     <div className="truncate text-xs text-muted">{u.email}</div>
                   </div>
-                  <UserActions u={u} act={act} onDelete={() => setDeleting(u)} />
+                  <UserActions u={u} act={act} onDelete={() => setDeleting(u)} confirm={confirm} />
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {u.emailVerified ? <Badge tone="done">Confirmed</Badge> : <Badge tone="soon">Not confirmed</Badge>}
+                  {confirm && (u.emailVerified ? <Badge tone="done">Confirmed</Badge> : <Badge tone="soon">Not confirmed</Badge>)}
                   {u.signIn.map((m) => <Badge key={m}>{m === 'google' ? 'Google' : 'Password'}</Badge>)}
                 </div>
                 <dl className="grid grid-cols-3 gap-2 text-xs">
@@ -418,7 +480,7 @@ function UsersTab() {
   );
 }
 
-function UserActions({ u, act, onDelete }: { u: AdminUser; act: (fn: () => Promise<unknown>, done: string) => Promise<void>; onDelete: () => void }) {
+function UserActions({ u, act, onDelete, confirm }: { u: AdminUser; act: (fn: () => Promise<unknown>, done: string) => Promise<void>; onDelete: () => void; confirm: boolean }) {
   if (u.isAdmin) return null;
   return (
     <Popover
@@ -432,7 +494,7 @@ function UserActions({ u, act, onDelete }: { u: AdminUser; act: (fn: () => Promi
     >
       {(close) => (
         <>
-          {!u.emailVerified && (
+          {confirm && !u.emailVerified && (
             <MenuItem onClick={() => { close(); void act(() => api(`/admin/users/${u.id}/resend-verification`, 'POST'), `Confirmation email sent to ${u.email}`); }}>
               <Mail size={15} /> Resend confirmation email
             </MenuItem>

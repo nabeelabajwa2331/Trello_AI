@@ -14,6 +14,22 @@ export const env = {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean),
   ),
+  /**
+   * Built-in site admin that logs in with a password set here (not a personal Gmail).
+   * Created/updated on every start. Google sign-in and "forgot password" are disabled for it.
+   */
+  siteAdmin: {
+    email: (process.env.SITE_ADMIN_EMAIL ?? '').trim().toLowerCase(),
+    password: process.env.SITE_ADMIN_PASSWORD ?? '',
+    name: (process.env.SITE_ADMIN_NAME ?? 'Site Admin').trim() || 'Site Admin',
+  },
+  /** Brevo (brevo.com) API key: sends email over HTTPS. Use it if your host blocks SMTP. Takes priority over SMTP. */
+  brevoKey: (process.env.BREVO_API_KEY ?? '').trim(),
+  /**
+   * Email confirmation (off by default). When on, signup sends a confirmation link and email invites can
+   * only be accepted after confirming. Off suits demo/test accounts with made-up addresses.
+   */
+  requireEmailConfirmation: (process.env.REQUIRE_EMAIL_CONFIRMATION ?? '').trim().toLowerCase() === 'true',
   /** Public address of the site, used in emailed links. Falls back to the request's own address. */
   appUrl: (process.env.APP_URL ?? '').replace(/\/$/, ''),
   /** Outgoing email (password resets). Empty SMTP_HOST = links are printed to the server log instead. */
