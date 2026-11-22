@@ -12,6 +12,7 @@ process.env.ADMIN_EMAILS = 'site.admin@example.edu, Other.Admin@example.edu';
 process.env.REQUIRE_EMAIL_CONFIRMATION = 'true'; // most tests check the strict mode; one test turns it off
 process.env.SITE_ADMIN_EMAIL = 'admin@gmail.com'; // deliberately an address we don't own
 process.env.SITE_ADMIN_PASSWORD = 'built-in-admin-pass-1';
+process.env.PROXY_SECRET = 'test-proxy-secret';
 
 let server: Server;
 let base = '';
@@ -198,6 +199,31 @@ describe('security', () => {
     await m.c.post(`/join/${link}`);
     assert.equal((await m.c.del(`/boards/${b.id}/members/${m.id}`)).status, 200);
     assert.equal((await m.c.get(`/boards/${b.id}`)).status, 404);
+  });
+});
+
+describe('website on Vercel (proxy + live-update ticket)', () => {
+  test('a socket ticket only opens live updates, never acts as a login cookie, and ends with the session', async () => {
+    const { sessionFromToken } = await import('../src/auth.js');
+    const { c } = await signup('Tia Ticket', 'tia@example.edu');
+    assert.equal((await new Client().get('/auth/socket-ticket')).status, 401, 'needs to be logged in');
+    const { ticket } = (await c.get('/auth/socket-ticket')).body;
+    assert.ok(await sessionFromToken(ticket, 'socket'), 'ticket works for live updates');
+    assert.equal(await sessionFromToken(ticket), null, 'ticket is not a login cookie');
+    const asCookie = new Client();
+    asCookie.cookie = `cb_token=${ticket}`;
+    assert.equal((await asCookie.get('/auth/me')).status, 401);
+    assert.equal(await sessionFromToken(c.cookie.split('=')[1], 'socket'), null, 'login cookie is not a ticket');
+    await c.post('/auth/logout');
+    assert.equal(await sessionFromToken(ticket, 'socket'), null, 'logging out ends the ticket too');
+  });
+
+  test("the visitor's IP from the proxy is trusted only with the right secret", async () => {
+    const { clientIp } = await import('../src/http.js');
+    const req = (h: Record<string, string>) => ({ ip: '10.0.0.1', get: (k: string) => h[k.toLowerCase()] }) as never;
+    assert.equal(clientIp(req({ 'x-crewboard-proxy': 'test-proxy-secret', 'x-crewboard-client-ip': '203.0.113.7' })), '203.0.113.7');
+    assert.equal(clientIp(req({ 'x-crewboard-proxy': 'wrong', 'x-crewboard-client-ip': '203.0.113.7' })), '10.0.0.1');
+    assert.equal(clientIp(req({ 'x-crewboard-client-ip': '203.0.113.7' })), '10.0.0.1');
   });
 });
 

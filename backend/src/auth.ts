@@ -7,7 +7,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { z } from 'zod';
 import { prisma } from './db.js';
 import { env } from './env.js';
-import { HttpError, appOrigin, handle, parse } from './http.js';
+import { HttpError, appOrigin, clientIp, handle, parse } from './http.js';
 import { mailEnabled, mailer, resetEmail, sendQuietly, verifyEmail } from './mail.js';
 import { broadcastBoard, disconnectSession, disconnectUser } from './realtime.js';
 
@@ -37,16 +37,23 @@ const newToken = () => crypto.randomBytes(32).toString('base64url');
 
 /* ------------------------------------------------------------------ sessions */
 
-/** The cookie holds a signed token naming a row in the Session table. */
-export async function sessionFromToken(token: string | undefined): Promise<{ userId: string; sessionId: string } | null> {
+/**
+ * The cookie holds a signed token naming a row in the Session table.
+ * kind 'socket': a one-minute ticket for connecting live updates straight to the backend (website on Vercel).
+ * A ticket never works as a login cookie, and the other way round.
+ */
+export async function sessionFromToken(
+  token: string | undefined,
+  kind: 'cookie' | 'socket' = 'cookie',
+): Promise<{ userId: string; sessionId: string } | null> {
   if (!token) return null;
-  let claims: { sub?: string; sid?: string };
+  let claims: { sub?: string; sid?: string; use?: string };
   try {
     claims = jwt.verify(token, env.jwtSecret) as typeof claims;
   } catch {
     return null;
   }
-  if (!claims.sub || !claims.sid) return null;
+  if (!claims.sub || !claims.sid || (claims.use ?? 'cookie') !== kind) return null;
   const s = await prisma.session.findUnique({ where: { id: claims.sid }, include: { user: { select: { suspendedAt: true } } } });
   if (!s || s.userId !== claims.sub || s.expiresAt.getTime() < Date.now() || s.user.suspendedAt) return null;
   return { userId: s.userId, sessionId: s.id };
@@ -151,6 +158,7 @@ const limiter = (limit: number, minutes: number, error: string) =>
     limit,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
+    keyGenerator: clientIp,
     skip: () => env.isTest,
     handler: (_req, res) => res.status(429).json({ error }),
   });
@@ -478,6 +486,12 @@ authRouter.get(
     res.json({ user: { ...publicUser(user), isAdmin: isAdmin(user), adminPending: isPendingAdmin(user) } });
   }),
 );
+
+/** One-minute ticket for live updates when the website is on another address (Vercel) than this server. */
+authRouter.get('/socket-ticket', requireUser, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ticket: jwt.sign({ sub: req.userId, sid: req.sessionId, use: 'socket' }, env.jwtSecret, { expiresIn: 60 }) });
+});
 
 /* ------------------------------------------------------------------ profile & settings */
 

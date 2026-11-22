@@ -28,6 +28,28 @@ Every push to `main` redeploys automatically. The free plan sleeps after 15 minu
 
 **To stop it sleeping at all:** add a free uptime monitor (for example UptimeRobot) that requests `https://<your-app>.onrender.com/api/health` every 5 minutes. One always-on free service fits in Render's 750 free hours a month.
 
+## Website on Vercel (optional)
+
+Vercel can serve the website, but not the backend: live updates (Socket.IO) need a server that stays on, which Vercel functions can't do. So the backend and database stay on Render + Neon, and Vercel serves the React app in front of them.
+
+- `/api/*` on the Vercel address is forwarded to Render by `frontend/api/proxy.js` (see `frontend/vercel.json`). The browser only talks to Vercel, so the login cookie stays a normal first-party cookie.
+- Live updates connect straight to Render with a one-minute ticket from `/api/auth/socket-ticket`; a ticket can't be used as a login cookie.
+- The proxy passes on each visitor's IP address with `PROXY_SECRET`, so login rate limits stay per visitor instead of being shared by everyone behind Vercel.
+
+Steps:
+
+1. Make a random secret (for example, run `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
+2. **Vercel:** Add New → Project → import this repo. Set **Root Directory** to `frontend` (it reads `frontend/vercel.json`). Under Environment Variables add:
+   - `BACKEND_URL` = `https://<your-app>.onrender.com`
+   - `PROXY_SECRET` = the secret from step 1
+3. **Render → Environment:** add
+   - `PROXY_SECRET` = the same secret
+   - `CLIENT_ORIGIN` = `https://<your-project>.vercel.app` (comma-separated if you have more addresses)
+   - optionally `APP_URL` = the Vercel address, so links in emails and invites point to Vercel
+4. **Google sign-in:** in Google Cloud → Credentials → your OAuth client, add the Vercel address to **Authorised JavaScript origins**.
+
+The Render address keeps working as before; Vercel is an extra front door.
+
 ## Admin panel
 
 `/admin` is for whoever runs the site (not board owners). It shows totals, a 14-day signups chart, setup status (email, Google, site address), a searchable user list, and a board list with counts only. Admins can resend confirmation emails, suspend accounts (blocks login and ends sessions) and delete accounts. A deleted user's boards go to the next person on them; boards with nobody else are deleted.

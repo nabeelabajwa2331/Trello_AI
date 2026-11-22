@@ -1,6 +1,7 @@
 /** Socket.IO connection. */
 import { io, type Socket } from 'socket.io-client';
 import type { Board, Notification, User } from '../types';
+import { api } from './api';
 
 type SyncEvent = { board: Board; users: Record<string, User>; log: { text: string; actorId: string; cardId?: string } | null };
 type InviteEvent = { type: 'invite'; invite: { id: string; fromUserId: string; role: string; boardTitle: string; boardCover: string } };
@@ -20,7 +21,17 @@ let socket: Socket | null = null;
 
 export function connectRealtime(h: Handlers) {
   socket?.disconnect();
-  socket = io(import.meta.env.VITE_SOCKET_URL ?? '/', { withCredentials: true, transports: ['websocket', 'polling'] });
+  const direct = import.meta.env.VITE_SOCKET_URL;
+  socket = direct
+    ? // Website on Vercel: live updates go straight to the backend with a one-minute ticket (fetched again on every reconnect).
+      io(direct, {
+        transports: ['websocket', 'polling'],
+        auth: (cb) =>
+          void api<{ ticket: string }>('/auth/socket-ticket')
+            .then(({ ticket }) => cb({ ticket }))
+            .catch(() => cb({})),
+      })
+    : io('/', { withCredentials: true, transports: ['websocket', 'polling'] });
   let wasConnected = false;
   socket.on('connect', () => {
     h.onStatus(true);

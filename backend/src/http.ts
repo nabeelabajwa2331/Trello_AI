@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import crypto from 'node:crypto';
 import { ZodError, type ZodTypeAny, type z } from 'zod';
 import { env } from './env.js';
 
@@ -20,6 +21,23 @@ export const handle = (fn: (req: Request, res: Response) => Promise<unknown>) =>
 
 export function parse<T extends ZodTypeAny>(schema: T, data: unknown): z.infer<T> {
   return schema.parse(data);
+}
+
+const sameSecret = (a: string, b: string) => {
+  const x = crypto.createHash('sha256').update(a).digest();
+  const y = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(x, y);
+};
+
+/**
+ * The visitor's IP address, for rate limits. Through the Vercel proxy every request comes from Vercel's servers,
+ * so the proxy sends the real address along with PROXY_SECRET; without the right secret that header is ignored.
+ */
+export function clientIp(req: Request): string {
+  const secret = req.get('x-crewboard-proxy');
+  const forwarded = req.get('x-crewboard-client-ip')?.trim();
+  if (env.proxySecret && secret && forwarded && sameSecret(secret, env.proxySecret)) return forwarded.slice(0, 64);
+  return req.ip ?? 'unknown';
 }
 
 /** Public address of the site for links in emails. */

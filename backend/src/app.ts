@@ -21,7 +21,7 @@ export function createAppServer() {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', 1); // Render sits behind a proxy
-  app.use(cors({ origin: env.clientOrigin, credentials: true }));
+  app.use(cors({ origin: env.clientOrigins, credentials: true }));
   app.use(express.json({ limit: '700kb' })); // room for a profile photo
   app.use(cookieParser());
 

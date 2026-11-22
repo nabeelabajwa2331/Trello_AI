@@ -10,11 +10,13 @@ import { boardSnapshot, forRole } from './snapshot.js';
 let io: Server | null = null;
 
 export function initRealtime(server: HttpServer) {
-  io = new Server(server, { cors: { origin: env.clientOrigin, credentials: true } });
+  io = new Server(server, { cors: { origin: env.clientOrigins, credentials: true } });
 
   io.use((socket, next) => {
+    // Same address as the website: the login cookie. Website on Vercel: a one-minute ticket from /api/auth/socket-ticket.
+    const ticket: unknown = socket.handshake.auth?.ticket;
     const cookies = parseCookie(socket.handshake.headers.cookie ?? '');
-    sessionFromToken(cookies[COOKIE])
+    (typeof ticket === 'string' ? sessionFromToken(ticket, 'socket') : sessionFromToken(cookies[COOKIE]))
       .then((s) => {
         if (!s) return next(new Error('unauthorized'));
         socket.data.userId = s.userId;

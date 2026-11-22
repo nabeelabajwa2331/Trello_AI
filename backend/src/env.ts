@@ -3,7 +3,13 @@ import 'dotenv/config';
 export const env = {
   port: Number(process.env.PORT ?? 4000),
   jwtSecret: process.env.JWT_SECRET ?? 'dev-only-secret-change-me',
-  clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
+  /** Websites allowed to call the API / live updates from the browser (comma-separated), e.g. the Vercel address. */
+  clientOrigins: (process.env.CLIENT_ORIGIN ?? 'http://localhost:5173')
+    .split(',')
+    .map((o) => o.trim().replace(/\/$/, ''))
+    .filter(Boolean),
+  /** Shared with the Vercel proxy (frontend/api/proxy.js). Lets it pass on the visitor's real IP address. */
+  proxySecret: (process.env.PROXY_SECRET ?? '').trim(),
   /** OAuth Client ID from Google Cloud Console. Empty = "Continue with Google" is hidden. */
   googleClientId: (process.env.GOOGLE_CLIENT_ID ?? '').trim(),
   /** Site admins: comma-separated emails. Only confirmed accounts with these emails get the admin panel. */
