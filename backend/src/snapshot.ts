@@ -2,6 +2,14 @@ import { prisma } from './db.js';
 import { publicUser } from './auth.js';
 import { can } from './permissions.js';
 
+/** The 8 card labels, in display order. Must match `enum Label` in schema.prisma. */
+export const LABELS = ['research', 'design', 'bug', 'docs', 'urgent', 'backend', 'slides', 'misc'] as const;
+const labelOrder = (l: string) => LABELS.indexOf(l as (typeof LABELS)[number]);
+
+/** Card.due is a DATE column; the API keeps speaking plain yyyy-MM-dd strings. */
+export const dueToDate = (due: string | null | undefined) => (due ? new Date(`${due}T00:00:00.000Z`) : due);
+export const dueToString = (due: Date | null) => (due ? due.toISOString().slice(0, 10) : null);
+
 /** Serialises a board into the exact shape the frontend store uses (frontend/src/types.ts), plus the users who appear on it. */
 export async function boardSnapshot(boardId: string) {
   const b = await prisma.board.findUnique({
@@ -11,7 +19,7 @@ export async function boardSnapshot(boardId: string) {
       lists: { orderBy: { position: 'asc' } },
       cards: {
         orderBy: { position: 'asc' },
-        include: { assignees: true, comments: { orderBy: { createdAt: 'asc' } } },
+        include: { labels: true, assignees: true, comments: { orderBy: { createdAt: 'asc' } } },
       },
       invites: { orderBy: { createdAt: 'desc' } },
       activities: { orderBy: { createdAt: 'desc' }, take: 150, include: { user: true } },
@@ -29,9 +37,9 @@ export async function boardSnapshot(boardId: string) {
       id: c.id,
       title: c.title,
       description: c.description,
-      labels: safeJson(c.labels),
+      labels: c.labels.map((l) => l.label as string).sort((a, b) => labelOrder(a) - labelOrder(b)),
       assignees: c.assignees.map((a) => a.userId),
-      due: c.due,
+      due: dueToString(c.due),
       comments: c.comments.map((m) => ({
         id: m.id,
         userId: m.userId,
@@ -87,13 +95,4 @@ type Snapshot = NonNullable<Awaited<ReturnType<typeof boardSnapshot>>>;
 /** Members and viewers don't see invite links or who else was invited; only people who can invite do. */
 export function forRole(board: Snapshot['board'], role: string): Snapshot['board'] {
   return can(role, 'invite') ? board : { ...board, invites: [], inviteLink: null };
-}
-
-function safeJson(s: string): string[] {
-  try {
-    const v = JSON.parse(s);
-    return Array.isArray(v) ? v : [];
-  } catch {
-    return [];
-  }
 }

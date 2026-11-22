@@ -602,7 +602,11 @@ describe('boards, lists and cards', () => {
     const id = (await owner.c.post(`/lists/${lists[0]}/cards`, { title: 'Slides' })).body.cardId;
     const ok = await owner.c.patch(`/cards/${id}`, { labels: ['slides', 'urgent'], due: '2026-12-01', description: 'Ten slides max' });
     assert.equal(ok.status, 200);
-    assert.deepEqual(ok.body.board.cards[id].labels, ['slides', 'urgent']);
+    assert.deepEqual(ok.body.board.cards[id].labels, ['urgent', 'slides'], 'stored as rows, returned in the fixed label order');
+    assert.equal(ok.body.board.cards[id].due, '2026-12-01');
+    const fewer = await owner.c.patch(`/cards/${id}`, { labels: ['slides', 'slides'], due: null });
+    assert.deepEqual(fewer.body.board.cards[id].labels, ['slides']);
+    assert.equal(fewer.body.board.cards[id].due, null);
     assert.equal((await owner.c.patch(`/cards/${id}`, { labels: ['not-a-label'] })).status, 400);
     assert.equal((await owner.c.patch(`/cards/${id}`, { due: '01/12/2026' })).status, 400);
   });

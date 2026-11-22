@@ -5,8 +5,8 @@ import { prisma } from './db.js';
 import { env } from './env.js';
 import { HttpError, appOrigin, forbidden, handle, notFound, parse } from './http.js';
 import { requireUser, publicUser, isAdmin, isPendingAdmin } from './auth.js';
-import { requireRole, type Action } from './permissions.js';
-import { boardSnapshot, forRole } from './snapshot.js';
+import { requireRole, type Action, type Role } from './permissions.js';
+import { LABELS, boardSnapshot, dueToDate, dueToString, forRole } from './snapshot.js';
 import { inviteEmail, sendQuietly } from './mail.js';
 import { addUserToBoardRoom, boardDeleted, broadcastBoard, notifyUser, removeUserFromBoardRoom, type Log } from './realtime.js';
 import { COVERS, TEMPLATES, type TemplateId } from './templates.js';
@@ -18,7 +18,6 @@ api.use(requireUser);
 
 const id = z.string().min(1).max(64);
 const roleSchema = z.enum(['admin', 'member', 'viewer']);
-const LABELS = ['research', 'design', 'bug', 'docs', 'urgent', 'backend', 'slides', 'misc'] as const;
 const quote = (s: string) => `“${s}”`;
 
 /** Board snapshot as this person may see it: their starred flag, and invite details only if they can invite. */
@@ -385,18 +384,18 @@ api.patch(
         const logs: string[] = [];
         const name = body.title ?? card.title;
         if (body.title !== undefined && body.title !== card.title) logs.push(`renamed a card to ${quote(body.title)}`);
-        if (body.due !== undefined && body.due !== card.due)
+        if (body.due !== undefined && body.due !== dueToString(card.due))
           logs.push(body.due ? `set ${quote(name)} due ${body.due}` : `removed the due date from ${quote(name)}`);
 
         await prisma.card.update({
           where: { id: card.id },
-          data: {
-            title: body.title,
-            description: body.description,
-            due: body.due,
-            labels: body.labels ? JSON.stringify([...new Set(body.labels)]) : undefined,
-          },
+          data: { title: body.title, description: body.description, due: dueToDate(body.due) },
         });
+        if (body.labels) {
+          await prisma.cardLabel.deleteMany({ where: { cardId: card.id } });
+          const labels = [...new Set(body.labels)];
+          if (labels.length) await prisma.cardLabel.createMany({ data: labels.map((label) => ({ cardId: card.id, label })) });
+        }
 
         if (body.assignees) {
           const members = new Set(
@@ -628,7 +627,7 @@ api.post(
   }),
 );
 
-async function joinBoard(userId: string, boardId: string, role: string) {
+async function joinBoard(userId: string, boardId: string, role: Role) {
   const exists = await prisma.boardMember.findUnique({ where: { boardId_userId: { boardId, userId } } });
   if (!exists) {
     await prisma.boardMember.create({ data: { boardId, userId, role } });
@@ -644,7 +643,7 @@ api.post(
     const inv = await prisma.invite.findUnique({ where: { token: req.params.token } });
     if (!inv || (inv.expiresAt && inv.expiresAt.getTime() < Date.now()))
       throw new HttpError(410, 'This invite link has expired or was turned off. Ask the board owner for a new one.');
-    await joinBoard(req.userId, inv.boardId, inv.role);
+    await joinBoard(req.userId, inv.boardId, inv.role as Role);
     res.json(await snapshotFor(inv.boardId, req.userId));
   }),
 );
@@ -658,7 +657,7 @@ api.post(
     // Email invites go to an address, so we need proof that this account really owns it.
     if (env.requireEmailConfirmation && !me.emailVerifiedAt)
       throw forbidden(`Confirm your email first. We sent a link to ${me.email}; you can send it again from the banner at the top.`);
-    await joinBoard(req.userId, inv.boardId, inv.role);
+    await joinBoard(req.userId, inv.boardId, inv.role as Role);
     await prisma.invite.delete({ where: { id: inv.id } });
     await broadcastBoard(inv.boardId, null);
     res.json(await snapshotFor(inv.boardId, req.userId));
