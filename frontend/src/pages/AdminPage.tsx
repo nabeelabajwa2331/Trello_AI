@@ -2,21 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
-import {
-  Ban,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  KeyRound,
-  Mail,
-  Minus,
-  MoreHorizontal,
-  Search,
-  ShieldCheck,
-  Trash2,
-  UserCheck,
-  X,
-} from 'lucide-react';
+import { Ban, ChevronLeft, ChevronRight, KeyRound, Mail, MoreHorizontal, Search, ShieldCheck, Trash2, UserCheck } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { Dialog } from '../components/ui/Dialog';
 import { Popover, MenuItem } from '../components/ui/Popover';
@@ -39,14 +25,6 @@ type Overview = {
   cards: number;
   comments: number;
   signups: { date: string; count: number }[];
-  system: {
-    email: boolean;
-    emailProvider: 'brevo' | 'smtp' | 'none';
-    google: boolean;
-    appUrl: string | null;
-    appUrlSource: 'APP_URL' | 'Render' | null;
-    admins: string[];
-  };
 };
 type AdminUser = {
   id: string;
@@ -169,99 +147,8 @@ function OverviewTab() {
           <h2 className="text-base font-bold">Accounts</h2>
           <Bar label="Email confirmed" value={data.verified} total={data.users} pct={pct(data.verified)} />
           <Bar label="Use Google sign-in" value={data.google} total={data.users} pct={pct(data.google)} />
-          <h2 className="mt-2 text-base font-bold">System</h2>
-          <ul className="flex flex-col gap-2 text-sm">
-            <SystemRow
-              ok={data.system.email}
-              optional
-              label={
-                data.system.emailProvider === 'brevo'
-                  ? 'Email sending (Brevo)'
-                  : data.system.emailProvider === 'smtp'
-                    ? 'Email sending (SMTP)'
-                    : 'Email sending: off (optional)'
-              }
-              fix="Not needed for now. Forgotten passwords are reset from Users → Set a new password. Turn email on later with the SMTP settings on Render if you need it."
-            />
-            <SystemRow ok={data.system.google} label="Google sign-in" fix="Set GOOGLE_CLIENT_ID on Render." />
-            <SystemRow
-              ok={!!data.system.appUrl}
-              label={
-                data.system.appUrl
-                  ? `Site address: ${data.system.appUrl}${data.system.appUrlSource === 'Render' ? ' (detected from Render)' : ''}`
-                  : 'Site address (APP_URL)'
-              }
-              fix="Set APP_URL so links in emails always point to the live site."
-            />
-          </ul>
-          <p className="text-xs text-muted">Admins: {data.system.admins.join(', ')}</p>
-          {data.system.email && <EmailTest />}
         </section>
       </div>
-    </div>
-  );
-}
-
-/** Check the email connection, then send a real test message to see it arrive. */
-function EmailTest() {
-  const [to, setTo] = useState('');
-  const [check, setCheck] = useState<{ ok: boolean; error?: string } | null>(null);
-  const [busy, setBusy] = useState<'check' | 'send' | null>(null);
-  return (
-    <div className="flex flex-col gap-2 border-t border-line pt-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold">Test email</span>
-        <button
-          className="btn-ghost h-8 px-2.5 text-xs"
-          disabled={busy !== null}
-          onClick={async () => {
-            setBusy('check');
-            try {
-              setCheck(await api<{ ok: boolean; error?: string }>('/admin/email-check'));
-            } catch (e) {
-              setCheck({ ok: false, error: errorMessage(e) });
-            }
-            setBusy(null);
-          }}
-        >
-          {busy === 'check' ? 'Checking…' : 'Check connection'}
-        </button>
-      </div>
-      {check && (
-        <p className={clsx('rounded-[8px] px-2.5 py-1.5 text-xs', check.ok ? 'bg-done text-done-fg' : 'bg-over text-over-fg')}>
-          {check.ok ? 'Connected. The email settings work.' : check.error}
-        </p>
-      )}
-      <form
-        className="flex gap-2"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!to.trim()) return;
-          setBusy('send');
-          try {
-            await api('/admin/test-email', 'POST', { to: to.trim() });
-            toast(`Test email sent to ${to.trim()}. Check the inbox and the spam folder.`);
-          } catch (err) {
-            toast.error(errorMessage(err));
-          }
-          setBusy(null);
-        }}
-      >
-        <label htmlFor="test-email-to" className="sr-only">
-          Send a test email to
-        </label>
-        <input
-          id="test-email-to"
-          type="email"
-          className="input h-9 min-w-0 flex-1 text-xs"
-          placeholder="you@example.com"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-        />
-        <button className="btn-primary h-9 px-3 text-xs" disabled={busy !== null || !to.trim()}>
-          {busy === 'send' ? 'Sending…' : 'Send'}
-        </button>
-      </form>
     </div>
   );
 }
@@ -289,27 +176,6 @@ function Bar({ label, value, total, pct }: { label: string; value: number; total
         <div className="h-full rounded-full bg-chart" style={{ width: `${pct}%` }} />
       </div>
     </div>
-  );
-}
-
-/** A setup line. `optional` items that are off show as a calm gray dash, not a warning. */
-function SystemRow({ ok, label, fix, optional }: { ok: boolean; label: string; fix: string; optional?: boolean }) {
-  return (
-    <li className="flex items-start gap-2">
-      <span
-        className={clsx(
-          'mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full',
-          ok ? 'bg-done text-done-fg' : optional ? 'bg-column text-muted' : 'bg-soon text-soon-fg',
-        )}
-      >
-        {ok ? <Check size={12} strokeWidth={3} /> : optional ? <Minus size={12} strokeWidth={3} /> : <X size={12} strokeWidth={3} />}
-      </span>
-      <span>
-        <span className="font-medium">{label}</span>
-        <span className="sr-only">{ok ? ': set up' : optional ? ': off' : ': not set up'}</span>
-        {!ok && <span className="block text-xs text-muted">{fix}</span>}
-      </span>
-    </li>
   );
 }
 

@@ -1,5 +1,16 @@
 import 'dotenv/config';
 
+/** Only the site's own address: "https://x.vercel.app/join/abc" becomes "https://x.vercel.app". */
+function siteOrigin(value: string) {
+  const v = value.trim();
+  if (!v) return '';
+  try {
+    return new URL(v.includes('://') ? v : `https://${v}`).origin;
+  } catch {
+    return v.replace(/\/+$/, '');
+  }
+}
+
 export const env = {
   port: Number(process.env.PORT ?? 4000),
   jwtSecret: process.env.JWT_SECRET ?? 'dev-only-secret-change-me',
@@ -33,7 +44,7 @@ export const env = {
   /** Email confirmation (off by default). */
   requireEmailConfirmation: (process.env.REQUIRE_EMAIL_CONFIRMATION ?? '').trim().toLowerCase() === 'true',
   /** Public address for links and previews: APP_URL, else Render's RENDER_EXTERNAL_URL, else the request's own address. */
-  appUrl: (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/$/, ''),
+  appUrl: siteOrigin(process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || ''),
   appUrlSource: process.env.APP_URL ? 'APP_URL' : process.env.RENDER_EXTERNAL_URL ? 'Render' : null,
   /** Outgoing email (password resets). Empty SMTP_HOST = links are printed to the server log instead. */
   smtp: {
